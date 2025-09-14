@@ -5,6 +5,7 @@ from typing import List
 import os
 import httpx
 from dotenv import load_dotenv
+from langchain_community.llms import Ollama
 
 load_dotenv()
 
@@ -12,8 +13,10 @@ load_dotenv()
 # gemma3:1b   # FastAPI + Next.js + Ollama 연동 예제
 
 app = FastAPI(title="FastAPI + Next.js Demo")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+# OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
+# OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "gpt-oss:20b"
 # --- CORS: 개발 중 Next.js(3000)에서 바로 호출 가능 ---
 origins = [
     "http://localhost:3000",
@@ -26,7 +29,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+# curl http://49.247.14.81:11434/api/tags
 # --- 모델 & 인메모리 저장소 (데모용) ---
 class TodoIn(BaseModel):
     title: str
@@ -95,30 +98,48 @@ class GenerateIn(BaseModel):
     prompt: str
     model: str | None = None  # 없으면 .env의 OLLAMA_MODEL 사용
 
+# @app.post("/api/generate_raw")
+# async def generate_raw(payload: GenerateIn):
+#     model = payload.model or OLLAMA_MODEL
+#     url = f"{OLLAMA_BASE_URL}/api/generate"
+
+#     req_json = {
+#         "model": model,
+#         "prompt": payload.prompt,
+#         "stream": False,
+#     }
+
+#     try:
+#         async with httpx.AsyncClient(timeout=60) as client:
+#             r = await client.post(url, json=req_json)
+#             # Ollama는 200이지만 내부 에러는 JSON 내 error에 담기는 경우도 있으니 방어
+#             if r.status_code >= 400:
+#                 raise HTTPException(r.status_code, r.text)
+#             data = r.json()
+#             if "error" in data:
+#                 raise HTTPException(500, data["error"])
+#             # Ollama generate 응답 예: { "model":..., "created_at":..., "response": "...", ... }
+#             return {"model": data.get("model"), "text": data.get("response", "")}
+#     except httpx.RequestError as e:
+#         raise HTTPException(502, f"Ollama connection failed: {e}")
+
+
+
 @app.post("/api/generate_raw")
 async def generate_raw(payload: GenerateIn):
-    model = payload.model or OLLAMA_MODEL
-    url = f"{OLLAMA_BASE_URL}/api/generate"
-
-    req_json = {
-        "model": model,
-        "prompt": payload.prompt,
-        "stream": False,
-    }
-
+    model = payload.model or "gpt-oss:20b"  # 기본 모델
+    
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+    )
+    
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(url, json=req_json)
-            # Ollama는 200이지만 내부 에러는 JSON 내 error에 담기는 경우도 있으니 방어
-            if r.status_code >= 400:
-                raise HTTPException(r.status_code, r.text)
-            data = r.json()
-            if "error" in data:
-                raise HTTPException(500, data["error"])
-            # Ollama generate 응답 예: { "model":..., "created_at":..., "response": "...", ... }
-            return {"model": data.get("model"), "text": data.get("response", "")}
-    except httpx.RequestError as e:
-        raise HTTPException(502, f"Ollama connection failed: {e}")
+        response = llm.invoke(payload.prompt)
+        return {"model": model, "text": response}
+    except Exception as e:
+        raise HTTPException(502, f"Ollama call failed: {str(e)}")
+
 
 # Chat API 예제
 
