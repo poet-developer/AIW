@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import useSWR from "swr";
 
-import SvgPathClickModal from '../UI/SVG';
+// import SvgPathClickModal from '../UI/SVG';
 
 // ✅ FastAPI 서버 베이스 URL (환경변수로 관리)
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -177,7 +177,7 @@ export default function Home() {
     </div>
       )}
       </section>
-      <SvgPathClickModal/>
+      
     </main>
   );
 }

@@ -16,7 +16,7 @@ app = FastAPI(title="FastAPI + Next.js Demo")
 # OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 # OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "gpt-oss:20b"
+OLLAMA_MODEL = "gemma3:12b"
 # --- CORS: 개발 중 Next.js(3000)에서 바로 호출 가능 ---
 origins = [
     "http://localhost:3000",
@@ -127,7 +127,7 @@ class GenerateIn(BaseModel):
 
 @app.post("/api/generate_raw")
 async def generate_raw(payload: GenerateIn):
-    model = payload.model or "gpt-oss:20b"  # 기본 모델
+    model = payload.model or "gemma3:12b"  # 기본 모델
     
     llm = Ollama(
         base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
