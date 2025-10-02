@@ -1,5 +1,5 @@
 'use client';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 export default function SvgPathClickModal({ onPathClick }) {
   const handlePathClick = useCallback(() => {

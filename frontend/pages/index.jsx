@@ -62,6 +62,10 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [genResult, setGenResult] = useState("");
 
+  // 디자인
+
+  const [activeBtn, setActiveBtn] = useState(null);
+
   useEffect(() => {
     // ✅ FastAPI WS 절대주소
     const ws = new WebSocket("ws://localhost:8000/ws");
@@ -128,7 +132,7 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 680, margin: "40px auto", fontFamily: "Inter, system-ui, sans-serif" }}>
-      <h1>FastAPI × Next.js (JS/Pages)</h1>
+      <h1>AKS 문화유산 안내문 번역</h1>
 
       <section style={{ marginTop: 24 }}>
         <h2>WebSocket 메시지</h2>
@@ -138,44 +142,103 @@ export default function Home() {
       </section>
 
       <section style={{ marginTop: 24 }}>
-        <h2>프롬프트 입력</h2>
-        <textarea
+        <h2>장곡사 미륵불 괘불탱 안내문</h2>
+        {/* <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="프롬프트를 입력하세요..."
           rows={4}
           style={{ width: "100%", padding: 8 }}
+        /> */}
+        <figure className="img_box">
+        <img
+          src="https://bkksg-images.s3.ap-northeast-2.amazonaws.com/raw/%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%8C%E1%85%A1%E1%86%BC%E1%84%80%E1%85%A9%E1%86%A8%E1%84%89%E1%85%A1+%E1%84%86%E1%85%B5%E1%84%85%E1%85%B3%E1%86%A8%E1%84%87%E1%85%AE%E1%86%AF+%E1%84%80%E1%85%AB%E1%84%87%E1%85%AE%E1%86%AF%E1%84%90%E1%85%A2%E1%86%BC(2014%E1%84%82%E1%85%A7%E1%86%AB+%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%83%E1%85%A9%E1%86%BC%E1%84%89%E1%85%A1%E1%86%AB+%E1%84%8B%E1%85%A2%E1%86%B8%E1%84%89%E1%85%A1%E1%84%8C%E1%85%B5%E1%86%AB).jpg"
+          alt="작품 제목 또는 이미지 설명(접근성용)"
+          loading="lazy"
+          decoding="async"
+          style={{width: "50vw"}}
         />
-        <button onClick={sendPrompt} style={{ marginTop: 8, padding: "8px 12px" }}>
-          보내기
-        </button>
+      <figcaption>작품 제목 · 작가명 · 연도 (원본 보기: 이미지 클릭)</figcaption>
+    </figure>
+        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+          {/* <button onClick={() => sendPrompt()} style={{ padding: "8px 12px" }}>
+            보내기
+          </button> */}
+          <button
+            onClick = {() => {
+              setActiveBtn("expert");
+              sendPrompt("이 안내문을 전문가용 학술 해설 형식으로 번역해줘.");
+            }}
+            className={activeBtn === "expert" ? "btn active" : "btn"}
+          >
+            전문가용
+          </button>
+          <button
+            onClick={() => {
+              setActiveBtn("expert");
+              sendPrompt("이 안내문을 어린이도 이해할 수 있는 쉬운 설명으로 바꿔줘.")
+            }}
+            className={activeBtn === "easy" ? "btn active" : "btn"}
+          >
+            쉬운풀이
+          </button>
+          <style jsx>{`
+            .btn {
+              padding: 8px 12px;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              transition: all 0.2s ease;
+            }
+            .btn:active {
+              transform: scale(0.95); /* 클릭 시 살짝 줄어듦 */
+              opacity: 0.8;
+            }
+            .btn.active {
+              box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); /* 눌린 버튼 강조 */
+            }
+            .btn:nth-child(1) {
+              background: #222;
+              color: #fff;
+            }
+            .btn:nth-child(2) {
+              background: #0066cc;
+              color: #fff;
+            }
+          `}</style>
+        </div>
+
+        {/* 로딩 스피너 */}
         {isGenerating && (
-  <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-    <div className="spinner" />
-    <span>응답을 생성 중...</span>
-    <style jsx>{`
-      .spinner {
-        width: 18px;
-        height: 18px;
-        border: 3px solid #ccc;
-        border-top-color: #333;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    `}</style>
-  </div>
-)}
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="spinner" />
+            <span>응답을 생성 중...</span>
+            <style jsx>{`
+              .spinner {
+                width: 18px;
+                height: 18px;
+                border: 3px solid #ccc;
+                border-top-color: #333;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+              }
+              @keyframes spin {
+                to {
+                  transform: rotate(360deg);
+                }
+              }
+              
+            `}</style>
+          </div>
+        )}
+
+        {/* 응답 */}
         {genResult && !isGenerating && (
-    <div style={{ marginTop: 12, whiteSpace: "pre-wrap", border: "1px solid #ddd", padding: 8 }}>
-      <strong>응답:</strong>
-      <div>{genResult}</div>
-    </div>
-      )}
+          <div style={{ marginTop: 12, whiteSpace: "pre-wrap", border: "1px solid #ddd", padding: 8 }}>
+            <strong>응답:</strong>
+            <div>{genResult}</div>
+          </div>
+        )}
       </section>
       
     </main>
