@@ -7,12 +7,14 @@ import httpx
 from dotenv import load_dotenv
 from langchain_community.llms import Ollama
 
+from makeContext import load_context
+
 load_dotenv()
 
 
 # gemma3:1b   # FastAPI + Next.js + Ollama 연동 예제
 
-app = FastAPI(title="FastAPI + Next.js Demo")
+app = FastAPI(title="장곡사 미륵불 괘불탱 안내문")
 # OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 # OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 OLLAMA_BASE_URL = "http://localhost:11434"
@@ -28,54 +30,27 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+) #여기 뭔지 모름 공부할것.
 # curl http://49.247.14.81:11434/api/tags
-# --- 모델 & 인메모리 저장소 (데모용) ---
-class TodoIn(BaseModel):
-    title: str
 
-class Todo(BaseModel):
-    id: int
-    title: str
-    done: bool = False
+# make_context.py의 함수 호출
+context_text = load_context("data.json")
+guide_text = load_context("guide.json")
+entities = load_context("entities.json")
 
-TODOS: List[Todo] = []
-NEXT_ID = 1
+# print("=== 불러온 guide ===")
+# print(guide_text[:300])  # 일부만 출력  
+
+# print("=== 불러온 context ===")
+# print(context_text[:300])  # 일부만 출력
+
 
 # --- REST API ---
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
 
-# CRUD
 
-# @app.get("/api/todos", response_model=List[Todo])
-# def list_todos():
-#     return TODOS
-
-# @app.post("/api/todos", response_model=Todo, status_code=201)
-# def create_todo(todo: TodoIn):
-#     global NEXT_ID
-#     new = Todo(id=NEXT_ID, title=todo.title, done=False)
-#     NEXT_ID += 1
-#     TODOS.append(new)
-#     return new
-
-# @app.patch("/api/todos/{todo_id}", response_model=Todo)
-# def toggle_done(todo_id: int):
-#     for t in TODOS:
-#         if t.id == todo_id:
-#             t.done = not t.done
-#             return t
-#     return {"detail": "Not found"}  # 간단 처리(실전에서는 HTTPException)
-
-# @app.delete("/api/todos/{todo_id}", status_code=204)
-# def delete_todo(todo_id: int):
-#     global TODOS
-#     TODOS = [t for t in TODOS if t.id != todo_id]
-#     return
-
-# --- WebSocket (브라우저에서 ws://localhost:8000/ws 로 연결) ---
 active_connections: List[WebSocket] = []
 
 @app.websocket("/ws")
@@ -98,47 +73,110 @@ class GenerateIn(BaseModel):
     prompt: str
     model: str | None = None  # 없으면 .env의 OLLAMA_MODEL 사용
 
-# @app.post("/api/generate_raw")
-# async def generate_raw(payload: GenerateIn):
-#     model = payload.model or OLLAMA_MODEL
-#     url = f"{OLLAMA_BASE_URL}/api/generate"
-
-#     req_json = {
-#         "model": model,
-#         "prompt": payload.prompt,
-#         "stream": False,
-#     }
-
-#     try:
-#         async with httpx.AsyncClient(timeout=60) as client:
-#             r = await client.post(url, json=req_json)
-#             # Ollama는 200이지만 내부 에러는 JSON 내 error에 담기는 경우도 있으니 방어
-#             if r.status_code >= 400:
-#                 raise HTTPException(r.status_code, r.text)
-#             data = r.json()
-#             if "error" in data:
-#                 raise HTTPException(500, data["error"])
-#             # Ollama generate 응답 예: { "model":..., "created_at":..., "response": "...", ... }
-#             return {"model": data.get("model"), "text": data.get("response", "")}
-#     except httpx.RequestError as e:
-#         raise HTTPException(502, f"Ollama connection failed: {e}")
-
-
-
 @app.post("/api/generate_raw")
 async def generate_raw(payload: GenerateIn):
     model = payload.model or "gemma3:12b"  # 기본 모델
-    
     llm = Ollama(
         base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
         model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
     )
     
+# ✅ 프롬프트 엔지니어링 로직 추가
+    engineered_prompt = f"장곡사 미륵불 괘불탱에 대하여 {payload.prompt}용으로 설명해줘."
+    # engineered_prompt = f"안녕"
+    print("전송모드", payload.prompt)
     try:
-        response = llm.invoke(payload.prompt)
-        return {"model": model, "text": response}
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,  # 디버깅용으로 반환
+            "text": response,
+        }
     except Exception as e:
-        raise HTTPException(502, f"Ollama call failed: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
+
+
+@app.post("/api/generate_prompt")
+async def generate_raw(payload: GenerateIn):
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
+    engineered_prompt = f"""
+    ###시스템
+    당신은 문화유산을 안내하는 전문가입니다.
+    아래에 대시된 참고 자료를 참고하여 문화유산 안내문을 작성하세요.
+    장곡사 미륵불 괘불탱 관련 참고 자료를 토대로 사실에 근거하여 작성하고,
+    문화유산 안내문 가이드를 준수하여 작성하세요.
+
+    **장곡사 미륵불 괘불탱 관련 참고 자료**
+    {context_text}
+
+    **문화유산 안내문 가이드** 
+    {guide_text}
+
+    위 지시 내용을 준수하여 장곡사 미륵불 괘불탱에 대하여 "{payload.prompt}"을/를 대상으로 설명해주세요.
+    """
+    print("전송된 프롬프트",payload.prompt)
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,
+            "text": response,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
+
+@app.post("/api/generate_entity")
+async def generate_raw(payload: GenerateIn):
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
+    engineered_prompt = f"""
+    ###시스템
+    당신은 문화유산을 안내하는 전문가입니다.
+    아래에 대시된 참고 자료를 참고하여 문화유산 안내문을 작성하세요.
+    장곡사 미륵불 괘불탱 관련 참고 자료를 토대로 사실에 근거하여 작성하고,
+    문화유산 안내문 가이드를 준수하여 작성하세요.
+
+    **장곡사 미륵불 괘불탱 관련 참고 자료**
+    불교 작품 정보: {context_text}
+    불교 인물 정보: {entities}
+
+    **문화유산 안내문 가이드** 
+    {guide_text}
+
+    위 지시 내용을 준수하여 장곡사 미륵불 괘불탱에 대하여 "{payload.prompt}"을/를 대상으로 설명해주세요.
+    """
+    print("전송된 프롬프트",payload.prompt)
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,
+            "text": response,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
 
 
 # Chat API 예제

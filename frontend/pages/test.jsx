@@ -179,6 +179,7 @@ export default function Home() {
           <div style={{ marginTop: 12, whiteSpace: "pre-wrap", border: "1px solid #ddd", padding: 8, borderRadius: 6 }}>
             <strong>응답:</strong>
             <div>{genResult}</div>
+            <TransfromBtn/>
           </div>
         )}
 
@@ -186,7 +187,7 @@ export default function Home() {
         <div style={{ marginTop: 16, color: "#666", fontSize: 12 }}>
           <strong>현재 프롬프트(테스트):</strong> {prompt}
           <div className=""></div>
-          <TransfromBtn/>
+          
           </div>
       </section>
     </main>

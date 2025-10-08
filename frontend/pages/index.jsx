@@ -9,21 +9,6 @@ import useSWR from "swr";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 
-const sendPrompt = async () => {
-  if (!prompt.trim()) return;
-  try {
-    setIsGenerating(true);     // 시작
-    setGenResult("");
-    const res = await apiPost("/api/generate_raw", { prompt });
-    setGenResult(res.text || "");
-  } catch (e) {
-    setGenResult("에러: " + e.message);
-  } finally {
-    setIsGenerating(false);    // 끝
-  }
-};
-
-
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
@@ -53,7 +38,6 @@ async function apiPost(path, body) {
 
 export default function Home() {
   // ✅ FastAPI의 /api/todos로 직접
-  const { data, mutate, isLoading, error } = useSWR("/api/todos", apiGet);
   const [title, setTitle] = useState("");
   const wsRef = useRef(null);
   const [msgs, setMsgs] = useState([]);
@@ -67,7 +51,7 @@ export default function Home() {
   const [activeBtn, setActiveBtn] = useState(null);
 
   useEffect(() => {
-    // ✅ FastAPI WS 절대주소
+    // ✅ FastAPI WS 절대주소 : 연결확인용
     const ws = new WebSocket("ws://localhost:8000/ws");
     wsRef.current = ws;
 
@@ -113,12 +97,12 @@ export default function Home() {
   // };
 
   // ✅ 프롬프트 전송 (FastAPI의 /api/generate_raw 사용)
-  const sendPrompt = async () => {
-    if (!prompt.trim()) return;
+  const sendPrompt = async (e) => {
+    console.log(e)
     try {
       setIsGenerating(true);     // 시작
       setGenResult("");
-      const res = await apiPost("/api/generate_raw", { prompt });
+      const res = await apiPost("/api/generate_prompt", { prompt: e });
       setGenResult(res.text || "");
     } catch (e) {
       setGenResult("에러: " + e.message);
@@ -143,13 +127,13 @@ export default function Home() {
 
       <section style={{ marginTop: 24 }}>
         <h2>장곡사 미륵불 괘불탱 안내문</h2>
-        {/* <textarea
+        <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="프롬프트를 입력하세요..."
           rows={4}
           style={{ width: "100%", padding: 8 }}
-        /> */}
+        />
         <figure className="img_box">
         <img
           src="https://bkksg-images.s3.ap-northeast-2.amazonaws.com/raw/%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%8C%E1%85%A1%E1%86%BC%E1%84%80%E1%85%A9%E1%86%A8%E1%84%89%E1%85%A1+%E1%84%86%E1%85%B5%E1%84%85%E1%85%B3%E1%86%A8%E1%84%87%E1%85%AE%E1%86%AF+%E1%84%80%E1%85%AB%E1%84%87%E1%85%AE%E1%86%AF%E1%84%90%E1%85%A2%E1%86%BC(2014%E1%84%82%E1%85%A7%E1%86%AB+%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%83%E1%85%A9%E1%86%BC%E1%84%89%E1%85%A1%E1%86%AB+%E1%84%8B%E1%85%A2%E1%86%B8%E1%84%89%E1%85%A1%E1%84%8C%E1%85%B5%E1%86%AB).jpg"
@@ -161,26 +145,24 @@ export default function Home() {
       <figcaption>작품 제목 · 작가명 · 연도 (원본 보기: 이미지 클릭)</figcaption>
     </figure>
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-          {/* <button onClick={() => sendPrompt()} style={{ padding: "8px 12px" }}>
-            보내기
-          </button> */}
+          {/* 버튼 클릭시 sendPrompt 함수 호출 */}
           <button
             onClick = {() => {
               setActiveBtn("expert");
-              sendPrompt("이 안내문을 전문가용 학술 해설 형식으로 번역해줘.");
+              sendPrompt("전문가");
             }}
             className={activeBtn === "expert" ? "btn active" : "btn"}
           >
-            전문가용
+            전문가 풀이
           </button>
           <button
             onClick={() => {
-              setActiveBtn("expert");
-              sendPrompt("이 안내문을 어린이도 이해할 수 있는 쉬운 설명으로 바꿔줘.")
+              setActiveBtn("easy");
+              sendPrompt("초등학생");
             }}
             className={activeBtn === "easy" ? "btn active" : "btn"}
           >
-            쉬운풀이
+            쉬운 풀이
           </button>
           <style jsx>{`
             .btn {
