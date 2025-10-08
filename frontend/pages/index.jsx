@@ -102,7 +102,8 @@ export default function Home() {
     try {
       setIsGenerating(true);     // 시작
       setGenResult("");
-      const res = await apiPost("/api/generate_prompt", { prompt: e });
+      // const res = await apiPost("/api/generate_prompt", { prompt: e });
+      const res = await apiPost("/api/generate_entity", { prompt: e });
       setGenResult(res.text || "");
     } catch (e) {
       setGenResult("에러: " + e.message);
