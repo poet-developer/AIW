@@ -104,7 +104,7 @@ export default function Home() {
       setIsGenerating(true);     // 시작
       setGenResult("");
       // const res = await apiPost("/api/generate_prompt", { prompt: e });
-      const res = await apiPost("/api/generate_all", { prompt: e });
+      const res = await apiPost("/api/generate_super", { prompt: e });
       setGenResult(res.text || "");
     } catch (e) {
       setGenResult("에러: " + e.message);
@@ -142,20 +142,29 @@ export default function Home() {
           <button
             onClick = {() => {
               setActiveBtn("expert");
-              sendPrompt("전문가");
+              sendPrompt("Academic Experts");
             }}
             className={activeBtn === "expert" ? "btn active" : "btn"}
           >
-            전문가 풀이
+            연구자 풀이
+          </button>
+          <button
+            onClick={() => {
+              setActiveBtn("normal");
+              sendPrompt("General Audience");
+            }}
+            className={activeBtn === "normal" ? "btn active" : "btn"}
+          >
+            일반 풀이
           </button>
           <button
             onClick={() => {
               setActiveBtn("easy");
-              sendPrompt("초등학생");
+              sendPrompt("Children");
             }}
             className={activeBtn === "easy" ? "btn active" : "btn"}
           >
-            쉬운 풀이
+            어린이 풀이
           </button>
           <style jsx>{`
             .btn {

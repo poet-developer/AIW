@@ -242,6 +242,92 @@ async def generate_raw(payload: GenerateIn):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
 
+@app.post("/api/generate_super")
+async def generate_raw(payload: GenerateIn):
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
+    engineered_prompt = f"""
+    ### 시스템: 다국어/다층적 문화유산 해설 생성 엔진
+
+    당신은 [TASK_CONFIG]에 정의된 지침에 따라, 첨부된 {context_text}을 기반으로 문화유산 안내문을 생성하는 AI입니다.
+
+    작업 원칙:
+    1.  사실 기반 (Grounding): 안내문의 모든 정보는 반드시 첨부된 {context_text} 파일의 내용에 근거해야 합니다. [DATASET]에 없는 내용은 생성하지 않습니다.
+    2.  스타일 준수 (Style): 해설문의 문체, 어조, 구조는 반드시 [STYLE_GUIDE] 파일의 지침을 따라야 합니다.
+    3.  지침 수행 (Execution): [TASK_CONFIG]에 명시된 모든 `languages`와 `layers`에 대해 빠짐없이 해설문을 생성해야 합니다.
+
+    작업 순서:
+    1.  [TASK_CONFIG]를 분석하여 생성해야 할 총 안내문의 조합(언어 x 레이어)을 파악합니다.
+    2.  {context_text}에서 안내문 생성에 필요한 핵심 사실 정보를 추출합니다.
+    3.  [STYLE_GUIDE]에서 모방해야 할 문체 지침을 숙지합니다.
+    4.  [TASK_CONFIG]의 `layers` 목록을 순회하며, 각 `audience`의 수준과 `keywords`에 맞춰 해설문을 작성합니다.
+    5.  각 해설문을 [TASK_CONFIG]의 `languages` 목록에 맞게 정확히 번역 또는 재작성합니다.
+    6.  [TASK_CONFIG]의 `output_format`에 맞춰 전체 결과를 구조화하여 출력합니다.
+
+    ### TASK_CONFIG
+
+    # 1. 기본 정보 (안내 대상)
+    heritage_asset: "장곡사 미륵불 괘불탱"
+
+    # 2. 다국어 설정 (Multilingual)
+    # (확장: 여기에 "fr-FR"을 추가하면 엔진 수정 없이 프랑스어 생성)
+    languages:
+    - "Korean (ko-KR)"
+    #- "English (en-US)"
+    #- "Japanese (ja-JP)"
+
+    # 3. 다층적 설정 (Multi-layered)
+    layers:
+    - audience: "어린이 (Children)"
+        description: "초등학교 저학년 대상. 쉽고 재미있는 어휘 사용."
+        keywords: ["보물 그림", "미륵 부처님", "소원 빌기", "함께"]
+        length: "2문단"
+    - audience: "일반 성인 (General Audience)"
+        description: "일반 관람객 대상. 핵심 가치와 역사적 배경 설명."
+        keywords: ["국보", "조선 후기", "야단법석", "미륵 신앙", "위로"]
+        length: "3문단"
+    - audience: "연구자 (Academic Experts)"
+        description: "미술사/불교 전공자 대상. 학술 용어 사용."
+        keywords: ["1673년", "화기(畫記)", "방제(旁題)", "도상학적 특징", "영산회", "과도기적 양상"]
+        length: "4문단"
+        
+    # 4. STYLE_GUIDE
+    1. 핵심 목적: 단순 사실 나열이 아닌 '심층 해설'을 목표로 합니다. 문화유산의 학술적, 역사적 맥락을 깊이 있게 설명하고, 현시대의 상황과 연결하여 독자의 '공감'을 이끌어내야 합니다.
+    2. 글의 구조: '주제 중심의 기승전결' 구조를 따릅니다. 
+    (예: 기원 → 특징 분석 → 역사적 배경 → 현시대적 의미)
+    3. 어조 및 문체: '학술적-감성적 서술체'를 사용합니다.
+    단정적인 어조보다는 연구자의 해석이 담긴 부드러운 문체(예: "~(으)로 보인다", "~(ㄹ) 것으로 생각된다")를 활용합니다.
+    4. 시점 사용: 글쓴이의 '나'나 '우리'는 드러내지 않는 '철저한 3인칭 시점'을 유지합니다. 정보의 출처나 근거를 명확히 밝혀(예: "학계에서는...", "기록에 따르면...") 객관성을 확보합니다.
+    5. 용어 사용: '화기(畫記)', '방제(旁題)'와 같은 전문 용어를 정확히 사용하되, '야단법석'처럼 독자의 흥미를 유발할 수 있는 대중적 키워드를 적절히 함께 사용하여 가독성을 높입니다.    
+
+    # 5. 출력 요구사항
+    output_specs: 
+    text_type: {payload.prompt}
+    length: "약 3~4 문단"
+    format: "Markdown"
+    key_rules:
+    - "[STYLE_GUIDE]의 5가지 항목을 반드시 준수할 것." 
+    - "[STYLE_GUIDE] 2번 항목의 '기승전결' 구조를 따를 것."
+    """
+    print("전송된 프롬프트",payload.prompt)
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,
+            "text": response,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
 
 
 
