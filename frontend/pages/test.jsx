@@ -7,11 +7,7 @@ import TransfromBtn from "../UI/TransformerBtn"
 // ✅ FastAPI 서버 베이스 URL (환경변수로 관리)
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-  return res.json();
-}
+
 
 // NOTE: 전송(백엔드 호출) 기능 비활성화 요청에 따라 apiPost는 사용하지 않음
 // async function apiPost(path, body) {
@@ -29,7 +25,6 @@ async function apiGet(path) {
 
 export default function Home() {
   // ✅ FastAPI의 /api/todos로 직접 (현재 화면에서 사용 안 해도 유지 가능)
-  const { data, mutate, isLoading, error } = useSWR("/api/todos", apiGet);
 
   const wsRef = useRef(null);
   const [msgs, setMsgs] = useState([]);
@@ -179,7 +174,7 @@ export default function Home() {
           <div style={{ marginTop: 12, whiteSpace: "pre-wrap", border: "1px solid #ddd", padding: 8, borderRadius: 6 }}>
             <strong>응답:</strong>
             <div>{genResult}</div>
-            <TransfromBtn/>
+            <TransfromBtn sourceText = "안녕하세요."/> 
           </div>
         )}
 

@@ -275,3 +275,57 @@ async def generate_raw(payload: GenerateIn):
 #             return {"text": msg, "raw": data}
 #     except httpx.RequestError as e:
 #         raise HTTPException(502, f"Ollama connection failed: {e}")
+
+
+# class TranslateRequest(BaseModel):
+#     text: str
+#     target_lang: str
+
+# @app.post("/api/translate")
+# async def translate(req: TranslateRequest):
+#     # 실제로는 번역 API 호출 또는 모델 inference로 교체 가능
+#     return {
+#         "translation": f"({req.target_lang} 번역 결과)\n\n{req.text} → [임시 번역된 내용]"
+#     }
+
+class TranslateRequest(BaseModel):
+    text: str
+    target_lang: str  # "영어", "일본어", "중국어" 등
+
+@app.post("/api/translate")
+async def translate(req: TranslateRequest):
+    """
+    Ollama 모델을 이용한 실제 번역 엔드포인트
+    """
+    model = "gemma3:12b"  # 필요 시 다른 모델 이름으로 변경 가능
+    llm = Ollama(
+        base_url="http://localhost:11434",  # Ollama 서버 주소
+        model=model,
+        temperature=0.3,
+        repeat_penalty=1.1,
+    )
+
+    # ✅ 프롬프트 엔지니어링
+    # 한국어 입력을 target_lang으로 자연스럽게 번역하되, 문화유산 관련 텍스트로서의 품격 유지
+    engineered_prompt = f"""
+    ### 시스템 지시:
+    다음 문장을 {req.target_lang}으로 번역하세요.
+
+    ### 번역 대상 텍스트:
+    {req.text}
+
+    ### 출력:
+    - 번역 결과만 출력하세요. 추가 설명이나 주석은 포함하지 마세요.
+    """
+
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "target_lang": req.target_lang,
+            "translation": response.strip(),
+            "prompt_used": engineered_prompt[:500]  # 디버그용 (프롬프트 일부만 표시)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama translation failed: {str(e)}")
