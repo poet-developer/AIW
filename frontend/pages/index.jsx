@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import useSWR from "swr";
+import ImgInteraction from "../UI/ImgInteraction";
 
 // import SvgPathClickModal from '../UI/SVG';
 
@@ -135,16 +136,7 @@ export default function Home() {
           rows={4}
           style={{ width: "100%", padding: 8 }}
         />
-        <figure className="img_box">
-        <img
-          src="https://bkksg-images.s3.ap-northeast-2.amazonaws.com/raw/%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%8C%E1%85%A1%E1%86%BC%E1%84%80%E1%85%A9%E1%86%A8%E1%84%89%E1%85%A1+%E1%84%86%E1%85%B5%E1%84%85%E1%85%B3%E1%86%A8%E1%84%87%E1%85%AE%E1%86%AF+%E1%84%80%E1%85%AB%E1%84%87%E1%85%AE%E1%86%AF%E1%84%90%E1%85%A2%E1%86%BC(2014%E1%84%82%E1%85%A7%E1%86%AB+%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%83%E1%85%A9%E1%86%BC%E1%84%89%E1%85%A1%E1%86%AB+%E1%84%8B%E1%85%A2%E1%86%B8%E1%84%89%E1%85%A1%E1%84%8C%E1%85%B5%E1%86%AB).jpg"
-          alt="작품 제목 또는 이미지 설명(접근성용)"
-          loading="lazy"
-          decoding="async"
-          style={{width: "50vw"}}
-        />
-      <figcaption>작품 제목 · 작가명 · 연도 (원본 보기: 이미지 클릭)</figcaption>
-    </figure>
+        <ImgInteraction />
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
           {/* 버튼 클릭시 sendPrompt 함수 호출 */}
           <button

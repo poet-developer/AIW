@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import TransfromBtn from "../UI/TransformerBtn"
+import ImgInteraction from "../UI/ImgInteraction";
 
 // ✅ FastAPI 서버 베이스 URL (환경변수로 관리)
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -89,16 +90,7 @@ export default function Home() {
         <h2>장곡사 미륵불 괘불탱 안내문</h2>
 
         {/* 이미지 프리뷰 */}
-        <figure className="img_box">
-          <img
-            src="https://bkksg-images.s3.ap-northeast-2.amazonaws.com/raw/%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%8C%E1%85%A1%E1%86%BC%E1%84%80%E1%85%A9%E1%86%A8%E1%84%89%E1%85%A1+%E1%84%86%E1%85%B5%E1%84%85%E1%85%B3%E1%86%A8%E1%84%87%E1%85%AE%E1%86%AF+%E1%84%80%E1%85%AB%E1%84%87%E1%85%AE%E1%86%AF%E1%84%90%E1%85%A2%E1%86%BC(2014%E1%84%82%E1%85%A7%E1%86%AB+%E1%84%80%E1%85%AE%E1%86%A8%E1%84%87%E1%85%A9+%E1%84%83%E1%85%A9%E1%86%BC%E1%84%89%E1%85%A1%E1%86%AB+%E1%84%8B%E1%85%A2%E1%86%B8%E1%84%89%E1%85%A1%E1%84%8C%E1%85%B5%E1%86%AB).jpg"
-            alt="장곡사 미륵불 괘불탱"
-            loading="lazy"
-            decoding="async"
-            style={{ width: "50vw", maxWidth: 900 }}
-          />
-          <figcaption>장곡사 미륵불 괘불탱 (원본 보기 미지원)</figcaption>
-        </figure>
+        <ImgInteraction />
 
         {/* 버튼 그룹 */}
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
