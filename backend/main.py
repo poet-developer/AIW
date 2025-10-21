@@ -331,49 +331,6 @@ async def generate_raw(payload: GenerateIn):
 
 
 
-# Chat API 예제
-
-# class ChatMessage(BaseModel):
-#     role: str  # "user" | "assistant" | "system"
-#     content: str
-
-# class ChatIn(BaseModel):
-#     messages: List[ChatMessage]
-#     model: str | None = None
-
-# @app.post("/api/chat")
-# async def chat(payload: ChatIn):
-#     model = payload.model or OLLAMA_MODEL
-#     url = f"{OLLAMA_BASE_URL}/api/chat"
-#     req_json = {
-#         "model": model,
-#         "messages": [{"role": m.role, "content": m.content} for m in payload.messages],
-#         "stream": False,
-#     }
-#     try:
-#         async with httpx.AsyncClient(timeout=60) as client:
-#             r = await client.post(url, json=req_json)
-#             if r.status_code >= 400:
-#                 raise HTTPException(r.status_code, r.text)
-#             data = r.json()
-#             # 예: {"message":{"role":"assistant","content":"..."},"done":true,...}
-#             msg = (data.get("message") or {}).get("content", "")
-#             return {"text": msg, "raw": data}
-#     except httpx.RequestError as e:
-#         raise HTTPException(502, f"Ollama connection failed: {e}")
-
-
-# class TranslateRequest(BaseModel):
-#     text: str
-#     target_lang: str
-
-# @app.post("/api/translate")
-# async def translate(req: TranslateRequest):
-#     # 실제로는 번역 API 호출 또는 모델 inference로 교체 가능
-#     return {
-#         "translation": f"({req.target_lang} 번역 결과)\n\n{req.text} → [임시 번역된 내용]"
-#     }
-
 class TranslateRequest(BaseModel):
     text: str
     target_lang: str  # "영어", "일본어", "중국어" 등
