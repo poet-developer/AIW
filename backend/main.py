@@ -360,7 +360,7 @@ async def translate(req: TranslateRequest):
     ### 출력:
     - 번역 결과만 출력하세요. 추가 설명이나 주석은 포함하지 마세요.
     """
-
+    print("번역 프롬프트:", engineered_prompt)
     try:
         response = llm.invoke(engineered_prompt)
         return {
