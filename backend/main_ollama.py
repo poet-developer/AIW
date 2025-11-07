@@ -1,24 +1,24 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from typing import List
 import os
+import httpx
 from dotenv import load_dotenv
+from langchain_community.llms import Ollama
 
 from makeContext import load_context
 
-import google.generativeai as genai
- 
-
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # gemma3:1b   # FastAPI + Next.js + Ollama 연동 예제
 
-
-
 app = FastAPI(title="장곡사 미륵불 괘불탱 안내문")
-
+# OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
+# OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "gemma3:12b"
+# --- CORS: 개발 중 Next.js(3000)에서 바로 호출 가능 ---
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -53,9 +53,13 @@ His elegant rhombic headdress is decorated with beads and flowers and features i
 It is believed that Maitreya, the Future Buddha, will descend into the human world 5.67 billion years after the death of Sakyamuni Buddha and rescue all beings from suffering.
 While the image depicted in this painting represents Maitreya, it is based on the scene of Sakyamuni Buddha’s lecture at Vulture Peak."""
 
-# ✅ 1️⃣ RDF/Turtle 파일 로드
-ttl_path = "../data/image_sheet.ttl"  # 실제 TTL 파일 경로
-    
+# print("=== 불러온 guide ===")
+# print(guide_text[:300])  # 일부만 출력  
+
+# print("=== 불러온 context ===")
+# print(context_text[:300])  # 일부만 출력
+
+
 # --- REST API ---
 @app.get("/api/health")
 def health():
@@ -83,90 +87,193 @@ async def websocket_endpoint(ws: WebSocket):
 class GenerateIn(BaseModel):
     prompt: str
     model: str | None = None  # 없으면 .env의 OLLAMA_MODEL 사용
+
+@app.post("/api/generate_raw")
+async def generate_raw(payload: GenerateIn):
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 로직 추가
+    engineered_prompt = f"장곡사 미륵불 괘불탱에 대하여 {payload.prompt}용으로 설명해줘."
+    # engineered_prompt = f"안녕"
+    print("전송모드", payload.prompt)
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,  # 디버깅용으로 반환
+            "text": response,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
     
 @app.post("/api/generate_raw")
 async def generate_raw(payload: GenerateIn):
-    model_name = "gemini-2.5-pro"
-    gemini = genai.GenerativeModel(model_name)
-    
-    engineered_prompt = f"장곡사 미륵불 괘불탱에 대하여 {payload.prompt}용으로 설명해줘."
-    
-    try:
-        response = gemini.generate_content(engineered_prompt)
-        return {
-            "model": model_name,
-            "input": payload.prompt,
-            "final_prompt": engineered_prompt,
-            "text": response.text,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gemini API call failed: {str(e)}")
-    
-    
-@app.post("/api/generate_ttl")
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+
+@app.post("/api/generate_prompt")
 async def generate_raw(payload: GenerateIn):
-    model_name = "gemini-2.5-pro"
-    gemini = genai.GenerativeModel(model_name)
-
-    try:
-        with open(ttl_path, "r", encoding="utf-8") as f:
-            ttl_context = f.read()
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="TTL file not found")
-
-    # ✅ 2️⃣ 프롬프트 엔지니어링 (RAG context 포함)
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
     engineered_prompt = f"""
-    당신은 문화유산 데이터 해석 전문가입니다.
-    아래에 주어진 RDF/Turtle 데이터를 참고하여, 장곡사 미륵불 괘불탱에 대해
-    '{payload.prompt}' 용으로 설명문을 작성하세요.
+    ###시스템
+    당신은 문화유산을 안내하는 전문가입니다.
+    아래에 제시된 참고 자료를 참고하여 문화유산 안내문을 작성하세요.
+    장곡사 미륵불 괘불탱 관련 참고 자료를 토대로 사실에 근거하여 작성하고,
+    문화유산 안내문 가이드를 준수하여 작성하세요.
 
-    --- RDF 데이터 (참고용 Context) ---
-    {ttl_context}
-    -----------------------------------
+    **장곡사 미륵불 괘불탱 관련 참고 자료**
+    {context_text}
 
-    출력 형식:
-    - 자연스러운 한국어 설명문
-    - RDF 데이터의 사실을 바탕으로만 작성
-    - 허구적 정보 추가 금지
+    **문화유산 안내문 가이드** 
+    {guide_text}
+
+    위 지시 내용을 준수하여 장곡사 미륵불 괘불탱에 대하여 "{payload.prompt}"을/를 대상으로 설명해주세요.
     """
-
+    print("전송된 프롬프트",payload.prompt)
     try:
-        response = gemini.generate_content(engineered_prompt)
+        response = llm.invoke(engineered_prompt)
         return {
-            "model": model_name,
+            "model": model,
             "input": payload.prompt,
             "final_prompt": engineered_prompt,
-            "text": response.text,
+            "text": response,
         }
 
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gemini API call failed: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
+
+@app.post("/api/generate_entity")
+async def generate_raw(payload: GenerateIn):
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
+    engineered_prompt = f"""
+    ###시스템
+    당신은 문화유산을 안내하는 전문가입니다.
+    아래에 제시된 참고 자료를 참고하여 문화유산 안내문을 작성하세요.
+    장곡사 미륵불 괘불탱 관련 참고 자료를 토대로 사실에 근거하여 작성하고,
+    문화유산 안내문 가이드를 준수하여 작성하세요.
+
+    **장곡사 미륵불 괘불탱 관련 참고 자료**
+    불교 작품 정보: {context_text}
+    불교 인물 정보: {entities}
+
+    **문화유산 안내문 가이드** 
+    {guide_text}
+
+    위 지시 내용을 준수하여 장곡사 미륵불 괘불탱에 대하여 "{payload.prompt}"을/를 대상으로 설명해주세요.
+    """
+    print("전송된 프롬프트",payload.prompt)
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,
+            "text": response,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
+    
+
+@app.post("/api/generate_all")
+async def generate_raw(payload: GenerateIn):
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
+    engineered_prompt = f"""
+    ###시스템
+    당신은 문화유산을 안내하는 전문가입니다.
+    아래에 제시된 참고 자료를 참고하여 문화유산 안내문을 작성하세요.
+    장곡사 미륵불 괘불탱 관련 참고 자료를 토대로 사실에 근거하여 작성하고,
+    문화유산 안내문 가이드와 기존 장곡사 미륵불 괘불탱 안내문을 준수하여 작성하세요.
+
+    **장곡사 미륵불 괘불탱 관련 참고 자료**
+    불교 작품 정보: {context_text}
+    불교 인물 정보: {entities}
+
+    **문화유산 안내문 가이드** 
+    1. 안내문안은 정보전달을 목적으로 하며 간결하고 쉽게 표현하여 초등학교 3학년생 이상이 이해할 수 있도록 작성한다.
+    2. 건축구조 및 형식 등 전문적인 용어를 지양하며 학습목적의 전문적 지식은 리플릿 등 타 매체를 통하여 보완한다
+    3. 다른 매체와의 역할분담과 연계활용을 고려한 정확하고 기본적인 정보위주로 작성하며, 관람자의 이해와 흥미유발을 위하여 Story-telling기법의 가미도 고려한다.
+    4. 국어문안은 국립국어원의 기준으로 작성한다.
+
+    **기존 장곡사 미륵불 괘불탱 안내문**
+    한국어 : {korean_text}
+    영어 : {english_text}
+    
+    위 지시 내용을 준수하여 장곡사 미륵불 괘불탱에 대하여 "{payload.prompt}"을/를 대상으로 설명해주세요.
+    """
+    print("전송된 프롬프트",payload.prompt)
+    try:
+        response = llm.invoke(engineered_prompt)
+        return {
+            "model": model,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,
+            "text": response,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
 
 @app.post("/api/generate_super")
 async def generate_raw(payload: GenerateIn):
-    model_name = "gemini-2.5-pro"
-    gemini = genai.GenerativeModel(model_name)
-    
-    try:
-        with open(ttl_path, "r", encoding="utf-8") as f:
-            ttl_context = f.read()
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="TTL file not found")
+    model = payload.model or "gemma3:12b"  # 기본 모델
+    llm = Ollama(
+        base_url="http://localhost:11434",  # SSH 터널 → 항상 localhost
+        model=model,
+        temperature=0.2,
+        repeat_penalty=1.2,
+    )
     
 # ✅ 프롬프트 엔지니어링 (RAG context 포함)
     engineered_prompt = f"""
     ### 시스템: 다국어/다층적 문화유산 해설 생성 엔진
 
-    당신은 [TASK_CONFIG]에 정의된 지침에 따라, 첨부된 {ttl_context}을 기반으로 문화유산 안내문을 생성하는 AI입니다.
+    당신은 [TASK_CONFIG]에 정의된 지침에 따라, 첨부된 {context_text}을 기반으로 문화유산 안내문을 생성하는 AI입니다.
 
     작업 원칙:
-    1.  사실 기반 (Grounding): 안내문의 모든 정보는 반드시 첨부된 {ttl_context} 파일의 내용에 근거해야 합니다. [DATASET]에 없는 내용은 생성하지 않습니다.
+    1.  사실 기반 (Grounding): 안내문의 모든 정보는 반드시 첨부된 {context_text} 파일의 내용에 근거해야 합니다. [DATASET]에 없는 내용은 생성하지 않습니다.
     2.  스타일 준수 (Style): 해설문의 문체, 어조, 구조는 반드시 [STYLE_GUIDE] 파일의 지침을 따라야 합니다.
     3.  지침 수행 (Execution): [TASK_CONFIG]에 명시된 모든 `languages`와 `layers`에 대해 빠짐없이 해설문을 생성해야 합니다.
 
     작업 순서:
     1.  [TASK_CONFIG]를 분석하여 생성해야 할 총 안내문의 조합(언어 x 레이어)을 파악합니다.
-    2.  {ttl_context}에서 안내문 생성에 필요한 핵심 사실 정보를 추출합니다.
+    2.  {context_text}에서 안내문 생성에 필요한 핵심 사실 정보를 추출합니다.
     3.  [STYLE_GUIDE]에서 모방해야 할 문체 지침을 숙지합니다.
     4.  [TASK_CONFIG]의 `layers` 목록을 순회하며, 각 `audience`의 수준과 `keywords`에 맞춰 해설문을 작성합니다.
     5.  각 해설문을 [TASK_CONFIG]의 `languages` 목록에 맞게 정확히 번역 또는 재작성합니다.
@@ -219,36 +326,18 @@ async def generate_raw(payload: GenerateIn):
     """
     print("전송된 프롬프트",payload.prompt)
     try:
-        response = gemini.generate_content(engineered_prompt)
+        response = llm.invoke(engineered_prompt)
         return {
-            "model": model_name,
+            "model": model,
             "input": payload.prompt,
             "final_prompt": engineered_prompt,
-            "text": response.text,
+            "text": response,
         }
 
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
 
 
-@app.post("/api/generate_zero")
-async def generate_raw(payload: GenerateIn):
-    model_name = "gemini-2.5-pro"
-    gemini = genai.GenerativeModel(model_name)
-    
-    engineered_prompt = payload.prompt
-    
-    try:
-        response = gemini.generate_content(engineered_prompt)
-        return {
-            "model": model_name,
-            "input": payload.prompt,
-            "final_prompt": engineered_prompt,
-            "text": response.text,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gemini API call failed: {str(e)}")
-    
 
 class TranslateRequest(BaseModel):
     text: str
@@ -256,8 +345,16 @@ class TranslateRequest(BaseModel):
 
 @app.post("/api/translate")
 async def translate(req: TranslateRequest):
-    model_name = "gemini-2.5-pro"
-    gemini = genai.GenerativeModel(model_name)
+    """
+    Ollama 모델을 이용한 실제 번역 엔드포인트
+    """
+    model = "gemma3:12b"  # 필요 시 다른 모델 이름으로 변경 가능
+    llm = Ollama(
+        base_url="http://localhost:11434",  # Ollama 서버 주소
+        model=model,
+        temperature=0.3,
+        repeat_penalty=1.1,
+    )
 
     # ✅ 프롬프트 엔지니어링
     # 한국어 입력을 target_lang으로 자연스럽게 번역하되, 문화유산 관련 텍스트로서의 품격 유지
@@ -273,11 +370,11 @@ async def translate(req: TranslateRequest):
     """
     print("번역 프롬프트:", engineered_prompt)
     try:
-        response = gemini.generate_content(engineered_prompt)
+        response = llm.invoke(engineered_prompt)
         return {
-            "model": model_name,
+            "model": model,
             "target_lang": req.target_lang,
-            "translation": response.text,
+            "translation": response.strip(),
             "prompt_used": engineered_prompt[:500]  # 디버그용 (프롬프트 일부만 표시)
         }
 
