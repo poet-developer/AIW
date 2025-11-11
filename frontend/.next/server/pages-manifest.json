@@ -2,8 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/": "pages/index.js",
-  "/socket1": "pages/socket1.js",
-  "/few-shot": "pages/few-shot.js",
-  "/zero-shot": "pages/zero-shot.js"
+  "/songyi": "pages/songyi.js",
+  "/test": "pages/test.js",
+  "/interaction": "pages/interaction.js"
 }
