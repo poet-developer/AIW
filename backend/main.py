@@ -11,10 +11,8 @@ import google.generativeai as genai
  
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
+genai.configure(api_key=os.getenv("GEMINI_API_KEY_2"))
 # gemma3:1b   # FastAPI + Next.js + Ollama 연동 예제
-
 
 
 app = FastAPI(title="장곡사 미륵불 괘불탱 안내문")
@@ -161,6 +159,7 @@ async def generate_raw(payload: GenerateIn):
             "input": payload.prompt,
             "final_prompt": engineered_prompt,
             "text": response.text,
+            #temperature": 0
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Gemini API call failed: {str(e)}")
@@ -467,6 +466,26 @@ async def generate_raw(payload: GenerateIn):
 
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ollama call failed: {str(e)}")
+    
+@app.post("/api/generate_songyi")
+async def generate_raw(payload: GenerateIn):
+    model_name = "gemini-2.5-pro"
+    gemini = genai.GenerativeModel(model_name)
+    
+# ✅ 프롬프트 엔지니어링 (RAG context 포함)
+    engineered_prompt = payload.prompt
+    print("전송된 프롬프트", engineered_prompt)
+    try:
+        response = gemini.generate_content(engineered_prompt)
+        return {
+            "model": model_name,
+            "input": payload.prompt,
+            "final_prompt": engineered_prompt,
+            "text": response.text,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Songyi call failed: {str(e)}")
     
 
 class TranslateRequest(BaseModel):
