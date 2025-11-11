@@ -24,6 +24,16 @@ self.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
+    "/few-shot": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/few-shot.js"
+    ],
+    "/socket1": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/socket1.js"
+    ],
     "/zero-shot": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
