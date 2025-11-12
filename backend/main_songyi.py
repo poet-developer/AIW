@@ -476,6 +476,7 @@ async def generate_raw(payload: GenerateIn):
             "input": payload.prompt,
             "final_prompt": engineered_prompt,
             "text": response.text,
+            "temperature": 0
         }
 
     except Exception as e:

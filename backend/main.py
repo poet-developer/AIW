@@ -11,7 +11,7 @@ import google.generativeai as genai
  
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY_2"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY_1"))
 # gemma3:1b   # FastAPI + Next.js + Ollama 연동 예제
 
 
