@@ -132,7 +132,7 @@ export default function Home() {
               opacity: 0.9;
             }
             .btn.active {
-              box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); /* 눌린 버튼 강조 */
+              box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* 눌린 버튼 강조 */
               outline: 2px solid rgba(0,0,0,0.12);
             }
           `}</style>
