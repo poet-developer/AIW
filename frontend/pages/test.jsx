@@ -4,25 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import TransfromBtn from "../UI/TransformerBtn"
 import ImgInteraction from "../UI/ImgInteraction";
+import CharacterBtn from "../UI/trans";
+
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`POST ${path} failed: ${res.status} ${t}`);
+  }
+  return res.json();
+}
 
 // ✅ FastAPI 서버 베이스 URL (환경변수로 관리)
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
-
-
-// NOTE: 전송(백엔드 호출) 기능 비활성화 요청에 따라 apiPost는 사용하지 않음
-// async function apiPost(path, body) {
-//   const res = await fetch(`${API_BASE}${path}`, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify(body),
-//   });
-//   if (!res.ok) {
-//     const t = await res.text();
-//     throw new Error(`POST ${path} failed: ${res.status} ${t}`);
-//   }
-//   return res.json();
-// }
 
 export default function Home() {
   // ✅ FastAPI의 /api/todos로 직접 (현재 화면에서 사용 안 해도 유지 가능)
@@ -61,19 +59,35 @@ export default function Home() {
     };
   }, []);
 
-  // ✅ 전송(백엔드 호출) 없이: 테스트 프롬프트를 세팅하고 1초 뒤 임시 응답 표시
-  const sendPrompt = (customPrompt) => {
-    const testPrompt = customPrompt || "[테스트] 장곡사 미륵불 괘불탱 안내문 요청";
-    setPrompt(testPrompt);
-    setIsGenerating(true);
-    setGenResult("");
-
-    // 1초 후 임시 응답 표시
-    setTimeout(() => {
-      setGenResult(`임시 응답입니다.\n\n프롬프트: ${testPrompt}\n\n여기에 생성된 텍스트가 표시됩니다.`);
-      setIsGenerating(false);
-    }, 1000);
+    // ✅ 프롬프트 전송 (FastAPI의 /api/generate_raw 사용)
+  const sendPrompt = async (e) => {
+    console.log(e)
+    try {
+      setIsGenerating(true);     // 시작
+      setGenResult("");
+      // const res = await apiPost("/api/generate_prompt", { prompt: e });
+      const res = await apiPost("/api/generate_few", { prompt: e });
+      setGenResult(res.text || "");
+    } catch (e) {
+      setGenResult("에러: " + e.message);
+    } finally {
+      setIsGenerating(false);    // 끝
+    }
   };
+
+  // // ✅ 전송(백엔드 호출) 없이: 테스트 프롬프트를 세팅하고 1초 뒤 임시 응답 표시
+  // const sendPrompt = (customPrompt) => {
+  //   const testPrompt = customPrompt || "[테스트] 장곡사 미륵불 괘불탱 안내문 요청";
+  //   setPrompt(testPrompt);
+  //   setIsGenerating(true);
+  //   setGenResult("");
+
+  //   // 1초 후 임시 응답 표시
+  //   setTimeout(() => {
+  //     setGenResult(`임시 응답입니다.\n\n프롬프트: ${testPrompt}\n\n여기에 생성된 텍스트가 표시됩니다.`);
+  //     setIsGenerating(false);
+  //   }, 1000);
+  // };
 
   return (
     <main style={{ maxWidth: 680, margin: "40px auto", fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -90,52 +104,11 @@ export default function Home() {
         <h2>장곡사 미륵불 괘불탱 안내문</h2>
 
         {/* 이미지 프리뷰 */}
-        <ImgInteraction />
+        <ImgInteraction sendPrompt={sendPrompt} />
 
         {/* 버튼 그룹 */}
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-          <button
-            onClick={() => {
-              setActiveBtn("expert");
-              // 송신 없이 테스트 프롬프트로 동작
-              sendPrompt("[테스트] 이 안내문을 전문가용 학술 해설 형식으로 설명해줘.");
-            }}
-            className={activeBtn === "expert" ? "btn active" : "btn btn-dark"}
-          >
-            전문가용
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveBtn("easy");
-              // 송신 없이 테스트 프롬프트로 동작
-              sendPrompt("[테스트] 이 안내문을 어린이도 이해할 수 있는 쉬운 설명으로 바꿔줘.");
-            }}
-            className={activeBtn === "easy" ? "btn active" : "btn btn-blue"}
-          >
-            쉬운풀이
-          </button>
-
-          <style jsx>{`
-            .btn {
-              padding: 8px 12px;
-              border: none;
-              border-radius: 6px;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              color: #fff;
-            }
-            .btn-dark { background: #222; }
-            .btn-blue { background: #0066cc; }
-            .btn:active {
-              transform: scale(0.95); /* 클릭 시 살짝 줄어듦 */
-              opacity: 0.9;
-            }
-            .btn.active {
-              box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* 눌린 버튼 강조 */
-              outline: 2px solid rgba(0,0,0,0.12);
-            }
-          `}</style>
+          <CharacterBtn sendPrompt={sendPrompt} />
         </div>
 
         {/* 로딩 스피너 */}

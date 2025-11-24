@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import useSWR from "swr";
 import ImgInteraction from "../UI/ImgInteraction";
-
+import CharacterBtn from "../UI/trans";
 // import SvgPathClickModal from '../UI/SVG';
 
 // ✅ FastAPI 서버 베이스 URL (환경변수로 관리)
@@ -120,6 +120,7 @@ export default function Home() {
           style={{ width: "100%", padding: 8 }}
         />
         <ImgInteraction />
+        <CharacterBtn sendPrompt={sendPrompt} />
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
           {/* 버튼 클릭시 sendPrompt 함수 호출 */}
           <div>
