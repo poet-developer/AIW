@@ -5,6 +5,7 @@ import useSWR from "swr";
 import TransfromBtn from "../UI/TransformerBtn"
 import ImgInteraction from "../UI/ImgInteraction";
 import CharacterBtn from "../UI/trans";
+import Loading from "../UI/Loading";
 
 async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -30,7 +31,8 @@ export default function Home() {
 
   // 상태
   const [prompt, setPrompt] = useState("");
-  const [genResult, setGenResult] = useState("");
+  const [genResult_all, setGenResult] = useState("");
+  const [genResult, setGenResult2] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeBtn, setActiveBtn] = useState(null);
 
@@ -75,19 +77,6 @@ export default function Home() {
     }
   };
 
-  // // ✅ 전송(백엔드 호출) 없이: 테스트 프롬프트를 세팅하고 1초 뒤 임시 응답 표시
-  // const sendPrompt = (customPrompt) => {
-  //   const testPrompt = customPrompt || "[테스트] 장곡사 미륵불 괘불탱 안내문 요청";
-  //   setPrompt(testPrompt);
-  //   setIsGenerating(true);
-  //   setGenResult("");
-
-  //   // 1초 후 임시 응답 표시
-  //   setTimeout(() => {
-  //     setGenResult(`임시 응답입니다.\n\n프롬프트: ${testPrompt}\n\n여기에 생성된 텍스트가 표시됩니다.`);
-  //     setIsGenerating(false);
-  //   }, 1000);
-  // };
 
   return (
     <main style={{ maxWidth: 680, margin: "40px auto", fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -104,7 +93,7 @@ export default function Home() {
         <h2>장곡사 미륵불 괘불탱 안내문</h2>
 
         {/* 이미지 프리뷰 */}
-        <ImgInteraction sendPrompt={sendPrompt} />
+        <ImgInteraction />
 
         {/* 버튼 그룹 */}
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
@@ -113,32 +102,14 @@ export default function Home() {
 
         {/* 로딩 스피너 */}
         {isGenerating && (
-          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <div className="spinner" />
-            <span>응답을 생성 중...</span>
-            <style jsx>{`
-              .spinner {
-                width: 18px;
-                height: 18px;
-                border: 3px solid #ccc;
-                border-top-color: #333;
-                border-radius: 50%;
-                animation: spin 0.8s linear infinite;
-              }
-              @keyframes spin {
-                to {
-                  transform: rotate(360deg);
-                }
-              }
-            `}</style>
-          </div>
+          <Loading />
         )}
 
         {/* 응답 */}
-        {genResult && !isGenerating && (
+        {genResult_all && !isGenerating && (
           <div style={{ marginTop: 12, whiteSpace: "pre-wrap", border: "1px solid #ddd", padding: 8, borderRadius: 6 }}>
             <strong>응답:</strong>
-            <div>{genResult}</div>
+            <div>{genResult_all}</div>
             <TransfromBtn sourceText = "안녕하세요."/> 
           </div>
         )}
