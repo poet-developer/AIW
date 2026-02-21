@@ -1,5 +1,6 @@
 # 인공지능과 인문학 최종 코드 실행 가이드
 코드 개발: [IROLIM](https://github.com/poet-developer)
+프롬프트 제공 : [SONG YI](https://github.com/Song-yiJung)
 
 ## 1) CLI 접속
 본 프로젝트는 **터미널(CLI)** 환경에서 명령어를 실행하여 구동합니다.
