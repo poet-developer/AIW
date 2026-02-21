@@ -8,7 +8,7 @@ import google.generativeai as genai
  
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY_3"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY_3")) # Google Gemini API 키 설정. 환경변수에서 불러옴. .env 파일에 GEMINI_API_KEY_3=your_api_key 형식으로 저장해야 함.
 # gemma3:1b   # FastAPI + Next.js + Ollama 연동 예제
 
 
