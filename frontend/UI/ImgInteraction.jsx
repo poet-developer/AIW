@@ -2,10 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import TransfromBtn from "./TransformerBtn"
-// import CharacterBtn from "./trans";
-// import Loading from "./Loading";
-
-
 
 export default function ImgInteraction() {
   const containerRef = useRef(null);
@@ -89,13 +85,13 @@ const [activeBtn, setActiveBtn] = useState(null);
       />
 
       {/* ✅ 오버레이 SVG (이미지와 동일 컨테이너 내 절대 배치) */}
-      <svg
+      {/* <svg
         role="presentation"
         style={styles.overlay}
-//           decoding="async"
-//           style={{width: "50vw"}}
-//         />
-      />
+           decoding="async"
+           style={{width: "50vw"}}
+         >
+      /> */}
 
       {/* ✅ 오버레이 SVG (이미지와 동일 컨테이너 내 절대 배치) */}
       <svg
@@ -131,12 +127,13 @@ const [activeBtn, setActiveBtn] = useState(null);
                   cursor: 'pointer',
                   fill: isActive ? 'rgba(255, 200, 0, 0.5)' : isHover ? 'rgba(255, 200, 0, 0.5)' : 'transparent',
                   outline: 'none',
-                }}
+                  }}
               />
             </g>
           );
         })}
       </svg>
+      {/* /* 오버레이 SVG 끝 */}
 
     </figure>
 

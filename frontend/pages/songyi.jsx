@@ -99,11 +99,11 @@ export default function Home() {
 
   // ✅ 프롬프트 전송 (FastAPI의 /api/generate_raw 사용)
   const sendPrompt = async (e) => {
-    console.log(e)
     try {
       setIsGenerating(true);     // 시작
       setGenResult("");
       // const res = await apiPost("/api/generate_prompt", { prompt: e });
+      console.log("프롬프트 전송:", e);
       const res = await apiPost("/api/generate_songyi", { prompt: e });
       setGenResult(res.text || "");
     } catch (e) {
