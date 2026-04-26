@@ -64,9 +64,14 @@ export default function Home() {
     try {
       setIsGenerating(true);     // 시작
       setGenResult("");
-      const res = await apiPost("/api/generate_final", { prompt: e });
+      console.log(e);
+      const res = await apiPost("/api/graph-cypher-qa", { prompt: e });
+      // const test = await apiPost("/api/test", e );
+      // console.log(test);
       setGenResult(res.text || "");
+      // setGenResult((test.results || []).join("\n\n"));
     } catch (e) {
+      console.error(e);
       setGenResult("에러: " + e.message);
     } finally {
       setIsGenerating(false);    // 끝
