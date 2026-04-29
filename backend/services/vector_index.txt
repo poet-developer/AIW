@@ -1,0 +1,19 @@
+[Vector Index]
+
+CREATE VECTOR INDEX heritage_vector_index IF NOT EXISTS
+FOR (c:Chunk)
+ON (c.embedding)
+OPTIONS {
+  indexConfig: {
+    `vector.dimensions`: 384,
+    `vector.similarity_function`: 'cosine'
+  }
+}
+
+SHOW INDEXES
+
+[fulltext Index]
+
+CREATE FULLTEXT INDEX heritage_fulltext_index IF NOT EXISTS
+FOR (c:Chunk)
+ON EACH [c.text]

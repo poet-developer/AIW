@@ -16,12 +16,9 @@ from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY_3")) 
-
+genai.configure(api_key=os.getenv("GEMINI_API_KEY_1")) 
 app = FastAPI(title="장곡사 미륵불 괘불탱 안내문")
-
 # 앱 시작 시 연결 확인
-
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -69,13 +66,17 @@ graph = Neo4jGraph(
 graph.refresh_schema()
 
 # 2) LLM과 체인 설정 (google gemini 2.5 flash 모델 사용 - 20260427 기준 최신 모델명)
+# 전역 활용되는 LLM
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=os.getenv("GEMINI_API_KEY_IRO"),
     temperature=0,
 )
+
+# 시스템 프롬프트 로드 - 안내문 생성 시 활용되는 고정
 guidelines = load_prompt("services/prompts/system_prompt.md") # 20260317 로 업데이트 # 줄일 필요 또는 고정하던지해야 성능 떨어짐.
 
+# 쿼리 자체를 만드는 코드 : 특정 정보만 요구하는 정보 설계를 할때는 비효율이 발생하여, 예외처리할때만 사용하도록 합니다.
 cypher_prompt = PromptTemplate(
     input_variables=["schema", "question"],
     template="""
@@ -98,6 +99,7 @@ cypher_prompt = PromptTemplate(
 """
 )
 
+# QA 체인 생성 - LLM이 질문을 보고 Cypher 쿼리를 생성 -> 그래프에서 실행 -> 결과 반환
 qa_chain = GraphCypherQAChain.from_llm(
     llm=llm, # llm_cypher는 쿼리 생성용, 최종안내문 llm과는 다른 모델.
     graph=graph, #schema는 그래프에서 자동으로 읽어오지만, 스키마가 너무 크거나 복잡하면 프롬프트에 직접 넣어서 쿼리 생성에 활용할 수도 있다.
@@ -110,6 +112,7 @@ qa_chain = GraphCypherQAChain.from_llm(
     top_k=10,
 )
 
+
 # 1. 라우터 프롬프트
 router_prompt = PromptTemplate(
     input_variables=["question"],
@@ -120,7 +123,8 @@ router_prompt = PromptTemplate(
 1. 참여 인물 조회
 2. 도상 정보 조회
 3. 제작 연도 조회
-4. 기타
+4. 시소러스 용어 조회
+5. 기타
 
 질문:
 {question}
@@ -129,29 +133,8 @@ router_prompt = PromptTemplate(
 """
 )
 
-router_chain = router_prompt | llm | StrOutputParser()
+router_chain_main = router_prompt | llm | StrOutputParser()
 
-
-participant_query = """
-MATCH (p)
-WHERE (
-  p:ns0__E21_Person
-  OR p:ns2__HistoricalPerson
-  OR p:ns4__Person
-)
-AND p.ns2__affiliationText CONTAINS "장곡사"
-RETURN
-  p.rdfs__label AS name,
-  p.ns4__name AS modern_name,
-  p.ns2__nameOriginal AS original_name,
-  p.ns2__roleModern AS role,
-  p.ns2__roleOriginal AS original_role,
-  p.rdfs__comment AS description
-LIMIT 20
-"""
-
-participants = graph.query(participant_query)
-print("참여인물", participants)
 # 3) 근거 기반 답변 생성 함수
 def answer_with_evidence(question: str):
     evidence_query = """
@@ -184,14 +167,93 @@ def answer_with_evidence(question: str):
         "answer": response
     }
     
-def run_graph_query(question: str):
-    route = router_chain.invoke({"question": question}).strip()
+def run_graph_query_main(question: str):
+    # route = router_chain_main.invoke({"question": question}).strip()
+    # print("선택된 route:", route)
+
+    # 각 라우트에 맞는 쿼리를 실행해서 결과 반환
+    # 참여인물 (호출 확인용 limit 10)
+    participants = graph.query("""
+    MATCH (p)
+    WHERE (
+      p:ns0__E21_Person
+      OR p:ns2__HistoricalPerson
+      OR p:ns4__Person
+    )
+    AND p.ns2__affiliationText CONTAINS "장곡사"
+    RETURN
+      p.rdfs__label AS name,
+      p.ns4__name AS modern_name,
+      p.ns2__nameOriginal AS original_name,
+      p.ns2__roleModern AS role,
+      p.ns2__roleOriginal AS original_role,
+      p.rdfs__comment AS description
+    LIMIT 10
+    """)
+    # 도상 정보 (호출 확인용 limit 10)
+    iconography = graph.query("""
+    MATCH (n)
+    WHERE n:ns2__IconographicFigure
+    RETURN
+      n.rdfs__label AS label,
+      n.skos__prefLabel AS prefLabel,
+      n.skos__definition AS definition,
+      n.rdfs__comment AS comment
+    LIMIT 10
+    """)
+    
+    협시 = graph.query("""MATCH (n)
+    WHERE n.ns2__iconographicRole = "주요협시"
+    RETURN
+    labels(n) AS labels,
+    n.rdfs__label AS label,
+    n.ns2__iconographicCategory AS category,
+    n.ns2__iconographicRole AS role,
+    n.rdfs__comment AS comment,
+    n.uri AS uri""")
+    
+    # 제작 연도 (호출 확인용 limit 10)
+    production_year = graph.query("""
+    MATCH (n)
+    WHERE any(k IN keys(n) WHERE toString(n[k]) CONTAINS "1673")
+    RETURN labels(n) AS labels, keys(n) AS props, n
+    LIMIT 10
+    """)
+
+    return {
+        "question": question,
+        "data": {
+            "participants": participants,
+            "iconography": iconography,
+            "production_year": production_year,
+            "협시" : 협시,
+        }
+    }
+        
+# def run_graph_query_select(question: str):
+    route = router_chain_main.invoke({"question": question}).strip()
     print("선택된 route:", route)
 
     if "참여 인물" in route:
         return {
             "route": route,
-            "data": graph.query(participant_query)
+            "data": graph.query("""
+            MATCH (p)
+            WHERE (
+            p:ns0__E21_Person
+            OR p:ns2__HistoricalPerson
+            OR p:ns4__Person
+            )
+            AND p.ns2__affiliationText CONTAINS "장곡사"
+            RETURN
+            p.rdfs__label AS name,
+            p.ns4__name AS modern_name,
+            p.ns2__nameOriginal AS original_name,
+            p.ns2__roleModern AS role,
+            p.ns2__roleOriginal AS original_role,
+            p.rdfs__comment AS description
+            LIMIT 20
+            """)
         }
 
     elif "도상" in route:
@@ -228,12 +290,6 @@ def run_graph_query(question: str):
             "data": qa_chain.invoke({"query": question})
         }
 
-result = run_graph_query("장곡사 미륵불 괘불탱의 제작시기를 알려줘")
-print(result)
-
-result = answer_with_evidence("장곡사 미륵불 괘불탱은 무슨 역사적 의의가 있어?")
-print("근거", result["answer"])
-
 # --- REST API ---
 @app.get("/api/health")
 def health():
@@ -256,6 +312,120 @@ async def websocket_endpoint(ws: WebSocket):
         active_connections.remove(ws)
         
         
+# participants = graph.query(participant_query)
+# print("참여인물", participants)
+
+result = run_graph_query_main("장곡사 미륵불 괘불탱에 알려줘")
+# result1 = run_graph_query_select("장곡사 미륵불 괘불탱에서 미륵존불에 대해 알려줘")
+
+print("디버깅",result["data"].get("협시", []))
+
+# result = answer_with_evidence("장곡사 미륵불 괘불탱은 무슨 역사적 의의가 있어?")
+# print("근거", result["answer"])
+
+
+class GraphQAIn(BaseModel):
+    prompt: dict
+
+@app.post("/api/graph-cypher-qa")
+async def graph_cypher_qa(payload: GraphQAIn):
+    model_name = "gemini-2.5-flash" # api 버전에 따라 모델명 변경 필요
+    gemini = genai.GenerativeModel(model_name)
+    
+    try:
+        prompt_obj = payload.prompt or {}
+
+        role = prompt_obj.get("role", "내국인")
+        depth = prompt_obj.get("depth", "일반")
+        detail = prompt_obj.get("detail", "한국어")
+        
+        # 고정 질문과 + 그래프에서 조회한 참여 인물 데이터를 프롬프트에 넣어서 안내문 생성
+        engineered_prompt = f"""
+    {guidelines}
+    ### [User Input Data]
+    // 아래 내용을 채워서 명령을 실행한다.
+    1. 기본 정보
+    - {{대상 유산}}: [장곡사 미륵불 괘불탱]
+    - {{분류}}: [장곡사 미륵불 괘불탱]
+    - {{명칭_한글}}: [장곡사 미륵불 괘불탱]
+    - {{명칭_한자}}: [長谷寺 彌勒佛 掛佛幀]
+    - {{명칭_영어}}: [Hanging Painting of Janggoksa Temple (Maitreya Buddha)]
+    - {{관람객 국적}}: {role}
+    // [내국인 | 외국인]
+    - {{관람객 유형}}: {depth} 
+    // [아동 | 일반 | 전문가 | 시니어]
+    - {{안내문 유형}}: [개별] 
+    // [종합 | 권역 | 개별]
+    - {{목표 언어(선택)}}: {detail}
+    // [예: 영어, 일본어, 또는 공란]
+    2. {{문화유산 지식 데이터}} (Knowledge Base)
+    // 생성의 근거가 되는 인문 지식 데이터
+    (1) 사실 정보
+    - 국가유산 지정 등급: [국보]
+    - 제작연도_서기: [1673]
+    - 제작시기_연호: [강희 12년, 현종 14년]
+    - 시대: [조선]
+    - 크기/재질: [세로 898cm, 가로 586cm/마본채색(삼베에 그린 것으로, 비단에 그린 것이 아니다)]
+    - 출토/소장: [장곡사]
+    - 주제분류: [미륵불괘불도, 영산회상도]
+    - 형식_구도: [대관보살형 입상, 군도 형식, 장엄신]
+    - 주존불 [미륵존불]
+    - 주요협시 목록: [비로자나불, 노사나불, {result["data"].get("협시", [])}]
+    - 그 외 협시: [80여 명의 시주자 동참 (사회/경제적 중요성)]
+    - 수화승: [철학(哲學)]
+    - 참여 인물: {result["data"].get("participants", [])}
+    - 조성배경: [화기의 서두에는 왕실의 안녕을 비는 관용적인 축원 문구가 기술되어 있고, 이어지는 본문에는 1673년 장곡사에서 영산대회(靈山大會)를 위해 괘불을 조성했다는 내용과 함께 모든 중생의 성불을 비는 회향문이 적혀 있다.]
+    - 핵심내용: [화기에는 """"영산대회괘불탱"""", 방제에는 """"미륵존불""""이라 명시되어 본존이 """"석가모니불""""과 """"미륵불""""의 성격을 동시에 지님을 알 수 있다. 화면은 """"비로자나불""""과 """"노사나불""""을 함께 배치한 삼신불 형식을 따르면서 동시에 미륵의 협시인 """"대묘상""""·""""법림보살""""이 등장하는 독특한 형태이다. 이는 연꽃 줄기(용화수)를 든 본존불이 영산회상도의 구성과 결합하여 나타난 희소한 사례로, 미륵불로서의 특징과 영산회상의 배치가 공존하는 조선 후기 불화의 복합적 양상을 보여주는 중요한 자료이다.]
+    - 
+    (2) 시소러스 (Thesaurus & Glossary)
+    // 전문 용어의 의미와 외국인용 번역 가이드
+    DEFINE [Thesaurus: Term] AS """"""""미륵존불“
+    - 대표명_한국어: 미륵존불
+    - 대표명_영어: Maitreya Buddha
+    - 대표명_한자번체: 彌勒尊佛
+    - 핵심정의: 미래에 성불하여 하생(下生)할 미륵.
+
+    - 대표명_한국어: 비로자나불
+    - 대표명_영어: Vairocana Buddha
+    - 대표명_한자번체: 毘盧遮那佛
+    - 핵심정의: 불교의 진리를 상징하는 부처. 화엄종의 중심 부처. '두루 비치는 빛'을 뜻하며 원래 인도어로 '태양'을 의미. 밀교(금강승)에서는 대일여래(大日如來).
+
+    DEFINE [Thesaurus: Term] AS """"""""노사나불""""""""
+    - 대표명_한국어: 노사나불
+    - 대표명_영어: Locana Buddha
+    - 대표명_한자번체: 盧舍那佛
+    - 핵심정의: 비로자나불의 보신불(報身佛)로, 오랜 수행을 통해 공덕을 쌓아 원만하게 깨달음을 성취한 부처이다.
+
+    DEFINE [Thesaurus: Term] AS """"""""대묘상보살“- 대표명_한국어: 대묘상보살
+    - 대표명_영어: 
+    - 대표명_한자번체: 大妙相菩薩
+    - 핵심정의: 대묘상보살(大妙相菩薩)은 미륵불의 협시보살 중 하나로, 미륵경전 대신 밀교경전에서 처음 언급된 후 조선시대 1678년에 제작된 청양 장곡사 미륵불괘불탱에서 법림보살(法林菩薩)과 함께 미륵불의 협시보살로 등장하고 있어 법림보살과 함께 미륵불의 공식적인 협시보살로 정착된 것으로 보인다.
+        DEFINE [Thesaurus: Term] AS """"""""법림보살""""""""
+        - 대표명_한국어: 법림보살
+    - 대표명_영어: 
+    - 대표명_한자번체: 法林菩薩
+    - 핵심정의: 법림보살(法林菩薩)은 미륵불(彌勒佛)의 협시보살(脇侍菩薩) 중 한 하나로, 초기 경전에는 언급이 없으나 조선시대 이후 간행된 불교 의례집인 『염불작법』과 불화(예: 장곡사 미륵괘불) 등에서 대묘상보살과 함께 미륵불의 협시로 정착된 보살이다.  (3) 참고문장
+        (3) 모범 답안/참조 문안
+        // 톤앤매너 참고용 문장 (선택 사항)
+    ---
+[EXECUTION COMMAND]
+위 [User Input Data]를 로드하고, [SYSTEM] 로직을 가동하여 결과를 출력하라."""
+    # print("엔지니어링된 프롬프트:", engineered_prompt) # 디버그용
+        response = gemini.generate_content(engineered_prompt)
+        # print(results)
+        return {
+            # "results": results,
+            # "thesaurus_results": thesaurus_results,
+            "role": role,
+            "depth": depth,
+            "detail": detail,
+            "model": model_name,
+            "text": response.text,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # def query_graph(queries):
 #     results = {}
 
@@ -289,121 +459,29 @@ async def websocket_endpoint(ws: WebSocket):
 #         except Exception as e:
 #             results[key] = f"조회 실패: {str(e)}"
 #     return results
-    
 
-# class GraphQAIn(BaseModel):
-#     prompt: dict
-
-# @app.post("/api/graph-cypher-qa")
-# async def graph_cypher_qa(payload: GraphQAIn):
-#     model_name = "gemini-2.5-flash" # api 버전에 따라 모델명 변경 필요
-#     gemini = genai.GenerativeModel(model_name)
-    
-#     try:
-#         prompt_obj = payload.prompt or {}
-
-#         role = prompt_obj.get("role", "내국인")
-#         depth = prompt_obj.get("depth", "일반")
-#         detail = prompt_obj.get("detail", "한국어")
-
-#         # 질문이 따로 없으면 기본 질문
-#         # user_query = prompt_obj.get(
-#         #     "query",
-#         #     "이 그래프에서 Person이 누구인지 알려줘"
-#         # )
-#         queries = { #사용자 입력 쿼리
-#             # "제작연도": "장곡사 미륵불 괘불탱의 제작 연도를 알려줘",
-#             "참여 인물": "장곡사 미륵불 괘불탱의 참여 인물을 알려줘", 
-#             # "주요 도상": "장곡사 미륵불 괘불탱의 주요 도상을 알려줘",
-#             # "본존과 협시": "장곡사 미륵불 괘불탱의 본존과 협시를 알려줘",
-#         } 
-#         # dh2026 목적 고정. 쿼리.
+# 질문이 따로 없으면 기본 질문
+        # user_query = prompt_obj.get(
+        #     "query",
+        #     "이 그래프에서 Person이 누구인지 알려줘"
+        # )
+        # queries = { #사용자 입력 쿼리
+        #     # "제작연도": "장곡사 미륵불 괘불탱의 제작 연도를 알려줘",
+        #     "참여 인물": "장곡사 미륵불 괘불탱의 참여 인물을 알려줘", 
+        #     # "주요 도상": "장곡사 미륵불 괘불탱의 주요 도상을 알려줘",
+        #     # "본존과 협시": "장곡사 미륵불 괘불탱의 본존과 협시를 알려줘",
+        # } 
+        # # dh2026 목적 고정. 쿼리.
         
-#         THESAURUS_TERMS = { #시소러스 조회용 고정 용어
-#             "미륵존불": "미륵존불",
-#             "비로자나불": "비로자나불",
-#             # "노사나불": "노사나불",
-#             # "대묘상보살": "대묘상보살",
-#             # "법림보살": "법림보살",
-#         }
+        # THESAURUS_TERMS = { #시소러스 조회용 고정 용어
+        #     "미륵존불": "미륵존불",
+        #     "비로자나불": "비로자나불",
+        #     # "노사나불": "노사나불",
+        #     # "대묘상보살": "대묘상보살",
+        #     # "법림보살": "법림보살",
+        # }
 
-#         results = query_graph(queries)
-#         # thesaurus_results = query_graph_thesaurus(THESAURUS_TERMS)
-#         print("그래프 쿼리 결과:", results)
-#         # print("시소러스 쿼리 결과:", thesaurus_results)
-        
-# #         engineered_prompt = f"""
-# #     {guidelines}
-# #     ### [User Input Data]
-# #     // 아래 내용을 채워서 명령을 실행한다.
-# #     1. 기본 정보
-# #     - {{대상 유산}}: [장곡사 미륵불 괘불탱]
-# #     - {{분류}}: [장곡사 미륵불 괘불탱]
-# #     - {{명칭_한글}}: [장곡사 미륵불 괘불탱]
-# #     - {{명칭_한자}}: [長谷寺 彌勒佛 掛佛幀]
-# #     - {{명칭_영어}}: [Hanging Painting of Janggoksa Temple (Maitreya Buddha)]
-# #     - {{관람객 국적}}: {role}
-# #     // [내국인 | 외국인]
-# #     - {{관람객 유형}}: {depth} 
-# #     // [아동 | 일반 | 전문가 | 시니어]
-# #     - {{안내문 유형}}: [개별] 
-# #     // [종합 | 권역 | 개별]
-# #     - {{목표 언어(선택)}}: {detail}
-# #     // [예: 영어, 일본어, 또는 공란]
-# #     2. {{문화유산 지식 데이터}} (Knowledge Base)
-# #     // 생성의 근거가 되는 인문 지식 데이터
-# #     (1) 사실 정보
-# #     - 국가유산 지정 등급: [국보]
-# #     - 제작연도_서기: [1673]
-# #     - 제작시기_연호: [강희 12년, 현종 14년]
-# #     - 시대: [조선]
-# #     - 크기/재질: [세로 898cm, 가로 586cm/마본채색(삼베에 그린 것으로, 비단에 그린 것이 아니다)]
-# #     - 출토/소장: [장곡사]
-# #     - 주제분류: [미륵불괘불도, 영산회상도]
-# #     - 형식_구도: [대관보살형 입상, 군도 형식, 장엄신]
-# #     - 주존불 [미륵존불]
-# #     - 주요협시 목록: [비로자나불, 노사나불, 대묘상보살, 법림보살]
-# #     - 그 외 협시: [80여 명의 시주자 동참 (사회/경제적 중요성)]
-# #     - 수화승: [철학(哲學)]
-# #     - 참여 인물: {results.get("참여 인물", {}).get("answer")}
-# #     - 조성배경: [화기의 서두에는 왕실의 안녕을 비는 관용적인 축원 문구가 기술되어 있고, 이어지는 본문에는 1673년 장곡사에서 영산대회(靈山大會)를 위해 괘불을 조성했다는 내용과 함께 모든 중생의 성불을 비는 회향문이 적혀 있다.]
-# #     - 핵심내용: [화기에는 """"영산대회괘불탱"""", 방제에는 """"미륵존불""""이라 명시되어 본존이 """"석가모니불""""과 """"미륵불""""의 성격을 동시에 지님을 알 수 있다. 화면은 """"비로자나불""""과 """"노사나불""""을 함께 배치한 삼신불 형식을 따르면서 동시에 미륵의 협시인 """"대묘상""""·""""법림보살""""이 등장하는 독특한 형태이다. 이는 연꽃 줄기(용화수)를 든 본존불이 영산회상도의 구성과 결합하여 나타난 희소한 사례로, 미륵불로서의 특징과 영산회상의 배치가 공존하는 조선 후기 불화의 복합적 양상을 보여주는 중요한 자료이다.]
-# #     - 
-# #     (2) 시소러스 (Thesaurus & Glossary)
-# #     // 전문 용어의 의미와 외국인용 번역 가이드
-# #     {thesaurus_text}
-# #         DEFINE [Thesaurus: Term] AS """"""""노사나불""""""""
-# #     - 대표명_한국어: 노사나불
-# #     - 대표명_영어: Locana Buddha
-# #     - 대표명_한자번체: 盧舍那佛
-# #     - 핵심정의: 비로자나불의 보신불(報身佛)로, 오랜 수행을 통해 공덕을 쌓아 원만하게 깨달음을 성취한 부처이다.
-
-# #     DEFINE [Thesaurus: Term] AS """"""""대묘상보살“- 대표명_한국어: 대묘상보살
-# #     - 대표명_영어: 
-# #     - 대표명_한자번체: 大妙相菩薩
-# #     - 핵심정의: 대묘상보살(大妙相菩薩)은 미륵불의 협시보살 중 하나로, 미륵경전 대신 밀교경전에서 처음 언급된 후 조선시대 1678년에 제작된 청양 장곡사 미륵불괘불탱에서 법림보살(法林菩薩)과 함께 미륵불의 협시보살로 등장하고 있어 법림보살과 함께 미륵불의 공식적인 협시보살로 정착된 것으로 보인다.
-# #         DEFINE [Thesaurus: Term] AS """"""""법림보살""""""""
-# #         - 대표명_한국어: 법림보살
-# #     - 대표명_영어: 
-# #     - 대표명_한자번체: 法林菩薩
-# #     - 핵심정의: 법림보살(法林菩薩)은 미륵불(彌勒佛)의 협시보살(脇侍菩薩) 중 한 하나로, 초기 경전에는 언급이 없으나 조선시대 이후 간행된 불교 의례집인 『염불작법』과 불화(예: 장곡사 미륵괘불) 등에서 대묘상보살과 함께 미륵불의 협시로 정착된 보살이다.  (3) 참고문장
-# #         (3) 모범 답안/참조 문안
-# #         // 톤앤매너 참고용 문장 (선택 사항)
-# #     ---
-# # [EXECUTION COMMAND]
-# # 위 [User Input Data]를 로드하고, [SYSTEM] 로직을 가동하여 결과를 출력하라."""
-# #     # print("엔지니어링된 프롬프트:", engineered_prompt) # 디버그용
-# #         response = gemini.generate_content(engineered_prompt)
-# #         print(results)
-# #         return {
-# #             "results": results,
-# #             "thesaurus_results": thesaurus_results,
-# #             "role": role,
-# #             "depth": depth,
-# #             "detail": detail,
-# #             "model": model_name,
-# #             "text": response.text,
-# #         }
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
+        # results = query_graph(queries)
+        # # thesaurus_results = query_graph_thesaurus(THESAURUS_TERMS)
+        # print("그래프 쿼리 결과:", results)
+        # # print("시소러스 쿼리 결과:", thesaurus_results)
