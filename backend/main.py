@@ -167,7 +167,7 @@ def answer_with_evidence(question: str):
         "answer": response
     }
     
-def run_graph_query_main(question: str):
+def run_graph_query_main():
     # route = router_chain_main.invoke({"question": question}).strip()
     # print("선택된 route:", route)
 
@@ -221,7 +221,6 @@ def run_graph_query_main(question: str):
     """)
 
     return {
-        "question": question,
         "data": {
             "participants": participants,
             "iconography": iconography,
@@ -315,7 +314,7 @@ async def websocket_endpoint(ws: WebSocket):
 # participants = graph.query(participant_query)
 # print("참여인물", participants)
 
-result = run_graph_query_main("장곡사 미륵불 괘불탱에 알려줘")
+result = run_graph_query_main()
 # result1 = run_graph_query_select("장곡사 미륵불 괘불탱에서 미륵존불에 대해 알려줘")
 
 print("디버깅",result["data"].get("협시", []))
