@@ -78,6 +78,20 @@ export default function Home() {
     }
   };
 
+    const sendPrompt2 = async (e) => {
+    console.log(e)
+    try {
+      setIsGenerating(true);     // 시작
+      setGenResult("");
+      const res = await apiPost("/api/select_prompt", { prompt: e });
+      // const res = await apiPost("/api/generate_few", { prompt: e });
+      setGenResult(res.text || "");
+    } catch (e) {
+      setGenResult("에러: " + e.message);
+    } finally {
+      setIsGenerating(false);    // 끝
+    }
+  };
   // 🔹 새 상태 추가
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -91,7 +105,7 @@ export default function Home() {
           {msgs.join("\n")}
         </pre>
       </section>
-        <ImgInteraction />
+        <ImgInteraction sendPrompt2={sendPrompt2} />
       <section style={{ marginTop: 24 }}>
 
         {/* 버튼 그룹 */}

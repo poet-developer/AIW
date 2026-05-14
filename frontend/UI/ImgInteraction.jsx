@@ -3,15 +3,33 @@
 import { useEffect, useRef, useState } from 'react';
 import TransfromBtn from "./TransformerBtn"
 
-export default function ImgInteraction() {
+export default function ImgInteraction({ sendPrompt2 }) {
   const containerRef = useRef(null);
   const [genResult, setGenResult] = useState("");
   const [hoverId, setHoverId] = useState(null);
   const [selected, setSelected] = useState(null); // { id, label }
   const [tooltip, setTooltip] = useState(null);   // { x, y, text }
   const [isGenerating, setIsGenerating] = useState(false);
-  // 디자인
-const [activeBtn, setActiveBtn] = useState(null); 
+
+  // ✅ 모달 제어
+  const [langModalOpen, setLangModalOpen] = useState(false);
+  const [foreignDepth, setForeignDepth] = useState(null); // "아동" | "일반" | "시니어" | "전문가"
+
+  const openLangModal = (depth) => {
+    setForeignDepth(depth);
+    setLangModalOpen(true);
+  };
+
+  const closeLangModal = () => {
+    setLangModalOpen(false);
+    setForeignDepth(null);
+  };
+
+  const chooseLang = (lang) => {
+    sendPrompt2({ role: "외국인", depth: foreignDepth, detail: lang });
+    closeLangModal();
+  };
+
 
   // 🔳 데모용 사각형 핫스팟들 (비율 단위: 0~100, 이미지 크기와 무관하게 반응형)
   const hotspots = [
@@ -57,20 +75,20 @@ const [activeBtn, setActiveBtn] = useState(null);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const sendPrompt2 = async (e) => {
-    console.log(e)
-    try {
-      setIsGenerating(true);     // 시작
-      setGenResult("");
-      // const res = await apiPost("/api/generate_prompt", { prompt: e });
-      // const res = await apiPost("/api/generate_few", { prompt: e });
-      setGenResult("안녕하세요" || "");
-    } catch (e) {
-      setGenResult("에러: " + e.message);
-    } finally {
-      setIsGenerating(false);    // 끝
-    }
-  };
+  // const sendPrompt2 = async (e) => {
+  //   console.log(e)
+  //   try {
+  //     setIsGenerating(true);     // 시작
+  //     setGenResult("");
+  //     const res = await apiPost("/api/select_prompt", { prompt: e });
+  //     // const res = await apiPost("/api/generate_few", { prompt: e });
+  //     setGenResult(res.text || "");
+  //   } catch (e) {
+  //     setGenResult("에러: " + e.message);
+  //   } finally {
+  //     setIsGenerating(false);    // 끝
+  //   }
+  // };
 
   return (
     <>
@@ -167,7 +185,7 @@ const [activeBtn, setActiveBtn] = useState(null);
                 <div style={{ marginTop: 12, whiteSpace: "pre-wrap", border: "1px solid #ddd", padding: 8, borderRadius: 6 }}>
                   <strong>응답:</strong>
                   <div>{genResult}</div>
-                  <TransfromBtn sourceText = "안녕하세요."/> 
+                  {/* <TransfromBtn sourceText = "미륵존불"/>  */}
                 </div>
               )}
           <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
@@ -175,19 +193,15 @@ const [activeBtn, setActiveBtn] = useState(null);
             <div>
             <button
                 onClick = {() => {
-                setActiveBtn("expert");
-                sendPrompt2("내국인 아동");
+                sendPrompt2({role:"내국인", depth:"아동", detail:"한국어"});
                 }}
-                className={activeBtn === "expert" ? "btn active" : "btn"}
             >
                 내국인 아동
             </button>
             <button
                 onClick={() => {
-                setActiveBtn("normal");
-                sendPrompt2("외국인 아동");
+                openLangModal("아동");
                 }}
-                className={activeBtn === "normal" ? "btn active" : "btn"}
             >
                 외국인 아동
             </button>
@@ -195,19 +209,15 @@ const [activeBtn, setActiveBtn] = useState(null);
             <hr></hr>
             <button
                 onClick={() => {
-                setActiveBtn("easy");
-                sendPrompt2("내국인 일반");
+                sendPrompt2({role:"내국인", depth:"일반", detail:"한국어"});
                 }}
-                className={activeBtn === "easy" ? "btn active" : "btn"}
             >
                 내국인 일반
             </button>
             <button
                 onClick={() => {
-                setActiveBtn("easy");
-                sendPrompt2("내국인 일반");
+                openLangModal("일반");
                 }}
-                className={activeBtn === "easy" ? "btn active" : "btn"}
             >
                 외국인 일반
             </button>
@@ -215,19 +225,15 @@ const [activeBtn, setActiveBtn] = useState(null);
             <div>
             <button
                 onClick={() => {
-                setActiveBtn("easy");
-                sendPrompt2("내국인 시니어");
+                sendPrompt2({role:"내국인", depth:"시니어", detail:"한국어"});
                 }}
-                className={activeBtn === "easy" ? "btn active" : "btn"}
             >
                 내국인 시니어
             </button>
             <button
                 onClick={() => {
-                setActiveBtn("easy");
-                sendPrompt2("외국인 시니어");
+                openLangModal("시니어");
                 }}
-                className={activeBtn === "easy" ? "btn active" : "btn"}
             >
                 외국인 시니어
             </button>
@@ -236,19 +242,15 @@ const [activeBtn, setActiveBtn] = useState(null);
             <div>
             <button
                 onClick={() => {
-                setActiveBtn("easy");
-                sendPrompt2("내국인 전문가")
+                sendPrompt2({role:"내국인", depth:"전문가", detail:"한국어"});
                 }}
-                className={activeBtn === "easy" ? "btn active" : "btn"}
             >
                 내국인 전문가
             </button>
                 <button
                 onClick={() => {
-                setActiveBtn("easy");
-                sendPrompt2("외국인 전문가");
+                openLangModal("전문가");
                 }}
-                className={activeBtn === "easy" ? "btn active" : "btn"}
             >
                 외국인 전문가
             </button>
@@ -292,6 +294,31 @@ const [activeBtn, setActiveBtn] = useState(null);
           >
             닫기
           </button>
+          {/* ✅ 모달 */}
+      {langModalOpen && (
+        <div className="modalOverlay" onClick={closeLangModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div className="modalTitle">언어 선택</div>
+              <div className="modalSub">외국인 · {foreignDepth}</div>
+            </div>
+
+            <div className="langGrid">
+              {["중국어", "일본어", "영어", "스와힐리어"].map((lang) => (
+                <button key={lang} className="langBtn" onClick={() => chooseLang(lang)}>
+                  {lang}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+              <button className="btn" onClick={closeLangModal}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
         </div>
         
       )}
