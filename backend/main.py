@@ -65,107 +65,17 @@ graph = Neo4jGraph(
 # schema를 최신 상태로 읽어오기
 graph.refresh_schema()
 
-# 2) LLM과 체인 설정 (google gemini 2.5 flash 모델 사용 - 20260427 기준 최신 모델명)
-# 전역 활용되는 LLM
-# llm = ChatGoogleGenerativeAI(
-#     model="gemini-2.5-flash",
-#     google_api_key=os.getenv("GEMINI_API_KEY_IRO"),
-#     temperature=0,
-# )
-
 # 시스템 프롬프트 로드 - 안내문 생성 시 활용되는 고정
 guidelines = load_prompt("services/prompts/system_prompt.md") # 20260317 로 업데이트 # 줄일 필요 또는 고정하던지해야 성능 떨어짐.
 
-# # 쿼리 자체를 만드는 코드 : 특정 정보만 요구하는 정보 설계를 할때는 비효율이 발생하여, 예외처리할때만 사용하도록 합니다.
-# cypher_prompt = PromptTemplate(
-#     input_variables=["schema", "question"],
-#     template="""
-# 너는 Neo4j Cypher 전문가이다.
-# 반드시 아래 스키마에 존재하는 라벨, 관계, 속성만 사용한다.
+ENTITY_URI_MAP = {
+    "미륵존불": "http://www.dh.aks.ac.kr/ontologies/CHAID#E000002",
+    "비로자나불": "http://www.dh.aks.ac.kr/ontologies/CHAID#E000004",
+    "노사나불": "http://www.dh.aks.ac.kr/ontologies/CHAID#E000005",
+    "대묘상보살": "http://www.dh.aks.ac.kr/ontologies/CHAID#E000010",
+    "법림보살": "http://www.dh.aks.ac.kr/ontologies/CHAID#E000011",
+}
 
-# 중요 규칙:
-# 1. Cypher만 출력한다.
-# 2. MATCH, WHERE, RETURN, LIMIT만 사용한다.
-# 3. CREATE, MERGE, DELETE, SET, REMOVE, CALL 금지.
-# 4. MATCH 괄호 안에서 OR를 쓰지 마라.
-# 5. 여러 라벨 후보는 WHERE에서 OR로 처리한다.
-# 6. 코드블록 표시 ```cypher```를 붙이지 마라.
-
-# 그래프 스키마:
-# {schema}
-
-# 질문:
-# {question}
-# """
-# )
-
-# # QA 체인 생성 - LLM이 질문을 보고 Cypher 쿼리를 생성 -> 그래프에서 실행 -> 결과 반환
-# qa_chain = GraphCypherQAChain.from_llm(
-#     llm=llm, # llm_cypher는 쿼리 생성용, 최종안내문 llm과는 다른 모델.
-#     graph=graph, #schema는 그래프에서 자동으로 읽어오지만, 스키마가 너무 크거나 복잡하면 프롬프트에 직접 넣어서 쿼리 생성에 활용할 수도 있다.
-#     cypher_prompt=cypher_prompt,
-#     # include_types=["Artwork", "Person", "Icon", "CREATED_BY", "DEPICTS"], #조회할 노드 라벨과 관계 타입을 지정해서 쿼리 생성 시 활용하도록 함. (지정 안하면 스키마 전체에서 조회)
-#     verbose=True, #체인 실행 시 디버그 로그 출력 여부
-#     validate_cypher=True, #생성된 Cypher 쿼리가 유효한지 검증 (문법 체크)
-#     allow_dangerous_requests=True, #위험한 쿼리 허용 거절 (예: 전체 노드 삭제하는 쿼리 등)
-#     return_intermediate_steps=True,  #최종 답변 외에 중간에 생성된 Cypher 쿼리와 그래프에서 반환된 원시 결과도 함께 반환 (디버그 및 분석용) 
-#     top_k=10,
-# )
-
-
-# 1. 라우터 프롬프트
-router_prompt = PromptTemplate(
-    input_variables=["question"],
-    template="""
-다음 질문을 보고 적절한 쿼리 타입을 하나만 선택하라.
-
-옵션:
-1. 참여 인물 조회
-2. 도상 정보 조회
-3. 제작 연도 조회
-4. 시소러스 용어 조회
-5. 기타
-
-질문:
-{question}
-
-답:
-"""
-)
-
-# router_chain_main = router_prompt | llm | StrOutputParser()
-
-# # 3) 근거 기반 답변 생성 함수
-# def answer_with_evidence(question: str):
-#     evidence_query = """
-#     MATCH (n)
-#     WHERE any(k IN keys(n) WHERE toString(n[k]) CONTAINS "장곡사")
-#     RETURN labels(n) AS labels, keys(n) AS props, n
-#     LIMIT 20
-#     """
-
-#     evidence = graph.query(evidence_query)
-
-#     final_prompt = f"""
-#         다음 Neo4j 조회 결과만 근거로 질문에 답하라.
-#         근거 데이터에 없는 내용은 추측하지 말고 "근거 데이터에서 확인되지 않습니다"라고 답하라.
-
-#         질문:
-#         {question}
-
-#         근거 데이터:
-#         {evidence}
-
-#         답변:
-#         """
-
-#     response = llm.invoke(final_prompt)
-
-#     return {
-#         "question": question,
-#         "evidence": evidence,
-#         "answer": response
-#     }
 def entire_graph_query():
     return graph.query("""
     MATCH (w:chaid__BuddhistPainting {uri: 'http://www.dh.aks.ac.kr/resource/CHAID/painting/CH000001'})
@@ -275,69 +185,72 @@ def entity_graph_query(entity_uri: str): # 특정 도상(예시: 미륵존불)�
     )
 
     return rows[0] if rows else {}
-    
-    
-    
-# def run_graph_query_select(question: str):
-    route = router_chain_main.invoke({"question": question}).strip()
-    print("선택된 route:", route)
 
-    if "참여 인물" in route:
-        return {
-            "route": route,
-            "data": graph.query("""
-            MATCH (p)
-            WHERE (
-            p:ns0__E21_Person
-            OR p:ns2__HistoricalPerson
-            OR p:ns4__Person
-            )
-            AND p.ns2__affiliationText CONTAINS "장곡사"
-            RETURN
-            p.rdfs__label AS name,
-            p.ns4__name AS modern_name,
-            p.ns2__nameOriginal AS original_name,
-            p.ns2__roleModern AS role,
-            p.ns2__roleOriginal AS original_role,
-            p.rdfs__comment AS description
-            LIMIT 20
-            """)
-        }
+def get_iconographic_entity(entity_uri: str):
+    rows = graph.query(
+        """
+        MATCH (e:chaid__IconographicFigure {uri: $ENTITY_URI})
+        OPTIONAL MATCH (w:chaid__BuddhistPainting {uri: $CH_URI})
+        OPTIONAL MATCH (e)<-[:chaid__isAttributeOf]-(attr:crm__E55_Type)
 
-    elif "도상" in route:
-        return {
-            "route": route,
-            "data": graph.query("""
-            MATCH (n)
-            WHERE n:ns2__IconographicFigure
-            RETURN
-              n.rdfs__label AS label,
-              n.skos__prefLabel AS prefLabel,
-              n.skos__definition AS definition,
-              n.rdfs__comment AS comment
-            LIMIT 20
-            """)
-        }
+        RETURN
+          e.skos__prefLabel AS pref_labels,
+          e.skos__altLabel AS alt_labels,
+          e.skos__definition AS definition_scholarly,
+          e.skos__editorialNote AS child_note,
+          e.chaid__hasAttributeText AS attribute_text,
+          collect(DISTINCT {
+            uri: attr.uri,
+            pref_labels: attr.skos__prefLabel,
+            child_note: attr.skos__editorialNote
+          }) AS attributes,
+          w.chaid__creationBackground AS work_creation_background,
+          w.chaid__significance AS work_significance
+        """,
+        params={
+            "ENTITY_URI": entity_uri,
+            "CH_URI": "http://www.dh.aks.ac.kr/resource/CHAID/painting/CH000001",
+        },
+    )
 
-    elif "제작 연도" in route:
-        return {
-            "route": route,
-            "data": graph.query("""
-            MATCH (n)
-            WHERE any(k IN keys(n) WHERE toString(n[k]) CONTAINS "1673")
-            RETURN labels(n) AS labels, keys(n) AS props, n
-            LIMIT 10
-            """)
-        }
+    return rows[0] if rows else {}
 
-    else:
-        # 전혀 새로운 질문은 여기로 보냄
-        return {
-            "route": route,
-            "mode": "llm_cypher_fallback",
-            "data": qa_chain.invoke({"query": question})
-        }
+def get_flower_entity():
+    rows = graph.query(
+        """
+        MATCH (e:crm__E55_Type)
+        WHERE e.uri IN [
+        "http://www.dh.aks.ac.kr/ontologies/CHAID#E000075",
+        "http://www.dh.aks.ac.kr/ontologies/CHAID#E000076"
+        ]
+        OPTIONAL MATCH (w:chaid__BuddhistPainting {uri: $CH_URI})
+        OPTIONAL MATCH (e)-[:chaid__isAttributeOf]->(fig:chaid__IconographicFigure)
 
+        WITH e, w,
+             collect(DISTINCT {
+                uri: fig.uri,
+                pref_labels: fig.skos__prefLabel
+             }) AS host_figures
+
+        RETURN
+          e.uri AS entity_uri,
+          e.skos__prefLabel AS pref_labels,
+          e.skos__altLabel AS alt_labels,
+          e.skos__definition AS definition_scholarly,
+          e.skos__editorialNote AS child_note,
+          e.skos__notation AS notation,
+          host_figures AS host_figures,
+          w.chaid__creationBackground AS work_creation_background,
+          w.chaid__significance AS work_significance
+
+        ORDER BY e.uri
+        """,
+        params={
+            "CH_URI": "http://www.dh.aks.ac.kr/resource/CHAID/painting/CH000001",
+        },
+    )
+
+    return rows if rows else {} # 용화수는 두 개의 URI가 있어서 리스트로 반환하도록 함 [0]은 연꽃가지 [1] 용화가지
 
 # --- REST API ---
 @app.get("/api/health")
@@ -379,11 +292,13 @@ chief_painters = [
 ]
 chief_painter_text = ", ".join(chief_painters)
 
-미륵존불 = entity_graph_query('http://www.dh.aks.ac.kr/ontologies/CHAID#E000002')
-비로자나불 = entity_graph_query('http://www.dh.aks.ac.kr/ontologies/CHAID#E000004')
-노사나불 = entity_graph_query('http://www.dh.aks.ac.kr/ontologies/CHAID#E000005')
-대묘상보살 = entity_graph_query('http://www.dh.aks.ac.kr/ontologies/CHAID#E000010')
-법림보살 = entity_graph_query('http://www.dh.aks.ac.kr/ontologies/CHAID#E000011')
+미륵존불 = entity_graph_query(ENTITY_URI_MAP["미륵존불"])
+비로자나불 = entity_graph_query(ENTITY_URI_MAP["비로자나불"])
+노사나불 = entity_graph_query(ENTITY_URI_MAP["노사나불"])
+대묘상보살 = entity_graph_query(ENTITY_URI_MAP["대묘상보살"])
+법림보살 = entity_graph_query(ENTITY_URI_MAP["법림보살"])
+
+용화수 = get_flower_entity() # 용화수 도상 정보 조회
 
 class GraphQAIn(BaseModel):
     prompt: dict
@@ -401,16 +316,18 @@ async def graph_cypher_qa(payload: GraphQAIn):
         detail = prompt_obj.get("detail")
         
         print("Received prompt:", prompt_obj)
-        
+
+        lang = "ko" if role == "내국인" else "en"
+
         # 고정 질문과 + 그래프에서 조회한 참여 인물 데이터를 프롬프트에 넣어서 안내문 생성
         engineered_prompt = f"""
     {guidelines}
     ### [User Input Data]
     // 아래 내용을 채워서 명령을 실행한다.
     1. 기본 정보
-    - {{대상 유산}}: {pick_lang(result["work_label"], "ko")}
-    - {{분류}}: {pick_lang(result["work_label"], "ko")}
-    - {{명칭_한글}}: {pick_lang(result["work_label"], "ko")}
+    - {{대상 유산}}: {pick_lang(result["work_label"], lang)}
+    - {{분류}}: {pick_lang(result["work_label"], lang)}
+    - {{명칭_한글}}: {pick_lang(result["work_label"], lang)}
     - {{명칭_한자}}: {pick_lang(result["work_label"], "ko-Hani")}
     - {{명칭_영어}}: [Hanging Painting of Janggoksa Temple (Maitreya Buddha)]
     - {{관람객 국적}}: {role}
@@ -424,20 +341,20 @@ async def graph_cypher_qa(payload: GraphQAIn):
     2. {{문화유산 지식 데이터}} (Knowledge Base)
     // 생성의 근거가 되는 인문 지식 데이터
     (1) 사실 정보
-    - 국가유산 지정 등급: {pick_lang(result["designation_grade"], "ko")}
+    - 국가유산 지정 등급: {pick_lang(result["designation_grade"], lang)}
     - 제작연도_서기: {result["year_created"][0]}
-    - 제작시기_연호: {pick_lang(result["year_expression"], "ko")}
-    - 시대: {pick_lang(result["era_label"], "ko")}
-    - 크기/재질: [세로 {result["total_height_cm"][0]}, 가로 {result["total_width_cm"][0]}/{pick_lang(result["material"], "ko")}
-    - 출토/소장: {pick_lang(result["address"], "ko")}
-    - 주제분류: {pick_lang(result["theme"], "ko")}
-    - 형식_구도: {pick_lang(result["composition"], "ko")}
-    - 주존불 {pick_lang(result["main_figure_text"], "ko")}
-    - 주요협시 목록: {pick_lang(result["attendant_figures_text"], "ko")}]
+    - 제작시기_연호: {pick_lang(result["year_expression"], lang)}
+    - 시대: {pick_lang(result["era_label"], lang)}
+    - 크기/재질: [세로 {result["total_height_cm"][0]}, 가로 {result["total_width_cm"][0]}/{pick_lang(result["material"], lang)}
+    - 출토/소장: {pick_lang(result["address"], lang)}
+    - 주제분류: {pick_lang(result["theme"], lang)}
+    - 형식_구도: {pick_lang(result["composition"], lang)}
+    - 주존불: {pick_lang(result["main_figure_text"], lang)}
+    - 주요협시 목록: {pick_lang(result["attendant_figures_text"], lang)}
     - 수화승: {chief_painter_text}
     - 참여 인물: {result["contributors"]}
-    - 조성배경: {pick_lang(result["creation_background"], "ko")}
-    - 핵심내용: {pick_lang(result["significance"], "ko")}
+    - 조성배경: {pick_lang(result["creation_background"], lang)}
+    - 핵심내용: {pick_lang(result["significance"], lang)}
 
     (2) 시소러스 (Thesaurus & Glossary)
     // 전문 용어의 의미와 외국인용 번역 가이드
@@ -506,13 +423,34 @@ async def generate_prompt(payload: GraphQAIn):
         role = prompt_obj.get("role")
         depth = prompt_obj.get("depth")
         detail = prompt_obj.get("detail")
+        label = prompt_obj.get("label")
         
-        print("도상, Received prompt:", prompt_obj)
+        lang = "ko" if role == "내국인" else "en"
+        
+        print("Received prompt:", role) # 디버그용
 
-        engineered_prompt = f"""### [User Input Data] (객체 설명용)
+        if label ==  '1':   
+            selected_icon = entity_graph_query(ENTITY_URI_MAP["미륵존불"])
+        elif label == '2':
+            selected_icon = entity_graph_query(ENTITY_URI_MAP["노사나불"])
+        elif label == '3':
+            selected_icon = entity_graph_query(ENTITY_URI_MAP["비로자나불"])
+        elif label == '8':
+            selected_icon = entity_graph_query(ENTITY_URI_MAP["대묘상보살"])
+        elif label == '9':
+            selected_icon = entity_graph_query(ENTITY_URI_MAP["법림보살"])
+        elif label == '용화수':
+            selected_icon = get_flower_entity()
+        else:
+            raise HTTPException(status_code=400, detail="Invalid label value")
+        
+        print("Selected iconographic entity:", selected_icon) # 디버그용
+
+        engineered_prompt = f"""
+        {guidelines}
+        ### [User Input Data] (객체 설명용)
         1. 기본 정보
-        - {{대상 유산}}: [장곡사 미륵불 괘불탱의 미륵존불] 
-        // 전체 명칭이 아닌 설명하고자 하는 '세부 객체명'을 입력
+        - {{대상 유산}}: [장곡사 미륵불 괘불탱의 {pick_lang(selected_icon["pref_labels"], lang)}]
         - {{상위 유산}}: [장곡사 미륵불 괘불탱]
         - {{관람객 국적}}: {role}
         - {{관람객 유형}}: {depth} 
@@ -522,16 +460,13 @@ async def generate_prompt(payload: GraphQAIn):
 
         2. {{문화유산 지식 데이터}} (Knowledge Base: 미륵존불)
         (1) 사실 정보 (대상 객체 중심)
-        - 객체 위치: [화면 중앙에 거대하게 서 있음]
-        - 도상 특징_지물: [오른손으로 연꽃 가지(용화수)를 들고 있음]
-        - 도상 특징_복식: [부처임에도 불구하고 머리에 화려한 보관(보석관)을 쓰고 있음]
-        - 수인(손모양): [변형된 항마촉지인 또는 설법인]
-        - 일반적 정의: [석가모니불의 뒤를 이어 56억 7천만 년 후에 세상에 내려와 중생을 구제하는 미래의 부처]
-        - 이 괘불만의 특징: [보통 미륵불은 의자에 앉아 있거나 서 있는 모습으로 나타나는데, 여기서는 영산회상도의 본존불처럼 묘사됨. 연꽃을 든 것은 용화회상을 상징함.]
-
+        {selected_icon}
+        
         (2) 시소러스 (Thesaurus)
-        - 미륵존불: Maitreya Buddha (The Future Buddha)
-        - 용화수: Dragon Flower Tree (Symbol of Maitreya's enlightenment)
+        DEFINE [Thesaurus: Term] AS ] "{pick_lang(selected_icon["pref_labels"], "ko")}" 
+        - 대표명_한국어: {pick_lang(selected_icon["pref_labels"], "ko")}
+        - 대표명_영어: {pick_lang(selected_icon["pref_labels"], "en")}
+        - 대표명_한자번체: {pick_lang(selected_icon["pref_labels"], "ko-Hani")}
 
         3. [추가 제약 조건] (Constraint for Object Description)
         - **제약 1 (내용 구성):** '일반적 정의(미륵불이 누구인가)'로 시작하여, '이 괘불 속 미륵불의 시각적 특징(연꽃, 보관 등)'으로 이어지는 **2단 구성**을 따를 것.
