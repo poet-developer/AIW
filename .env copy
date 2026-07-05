@@ -1,0 +1,13 @@
+# .env
+
+# DEV
+
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_MODEL=gemma3:1b
+#외부 GPU 사용시
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gpt-oss:20b
+#gemini api 사용시
+GEMINI_API_KEY_1=AIzaSyA74SXPBnaNIv68WXVlQgsUNOKG-8PP05k
+GEMINI_API_KEY_2=AIzaSyCQpnFufd34HDP09wTBEo2R0sX_gNmEVK0
+GEMINI_API_KEY_IRO=AIzaSyC0Ham_LbmPFDmVpOrxjk313auufXkMk7w

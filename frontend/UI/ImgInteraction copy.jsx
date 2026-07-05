@@ -195,8 +195,6 @@ export default function ImgInteraction({ sendPrompt2 }) {
             <button
                 onClick = {() => {
                 sendPrompt2({role:"내국인", depth:"아동", detail:"한국어", label:selected.label});
-                setTooltip(null);
-                setSelected(null);
                 }}
             >
                 내국인 아동
@@ -213,8 +211,6 @@ export default function ImgInteraction({ sendPrompt2 }) {
             <button
                 onClick={() => {
                 sendPrompt2({role:"내국인", depth:"일반", detail:"한국어", label:selected.label });
-                setTooltip(null);
-                setSelected(null);
                 }}
             >
                 내국인 일반
@@ -231,8 +227,6 @@ export default function ImgInteraction({ sendPrompt2 }) {
             <button
                 onClick={() => {
                 sendPrompt2({role:"내국인", depth:"시니어", detail:"한국어", label:selected.label });
-                setTooltip(null);
-                setSelected(null);
                 }}
             >
                 내국인 시니어
@@ -250,8 +244,6 @@ export default function ImgInteraction({ sendPrompt2 }) {
             <button
                 onClick={() => {
                 sendPrompt2({role:"내국인", depth:"전문가", detail:"한국어", label:selected.label });
-                setTooltip(null);
-                setSelected(null);
                 }}
             >
                 내국인 전문가
