@@ -10,7 +10,7 @@ from services import graph_service, prompt_service, data_service
 
 # --- Initialization ---
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY_1")) 
+genai.configure(api_key=os.getenv("GEMINI_API_KEY_IRO")) 
 
 # --- FastAPI App ---
 app = FastAPI(title="장곡사 미륵불 괘불탱 안내문")
